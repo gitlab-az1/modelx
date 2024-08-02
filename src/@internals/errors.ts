@@ -20,6 +20,8 @@ export const enum ERROR_CODE {
   ERR_CRYPTO_INVALID_ALGORITHM = 1014,
   ERR_ENVIRONMENT_VARIABLE_REDECLARATION = 1015,
   ERR_UNEXPECTED_PROMISE = 1016,
+  ERR_RESOURCE_DISPOSED = 1017,
+  ERR_ASSERTATION_FAILED = 1018,
 }
 
 
@@ -61,6 +63,10 @@ export function stringToErrno(code: keyof typeof ERROR_CODE): number {
       return ERROR_CODE.ERR_ENVIRONMENT_VARIABLE_REDECLARATION;
     case 'ERR_UNEXPECTED_PROMISE':
       return ERROR_CODE.ERR_UNEXPECTED_PROMISE;
+    case 'ERR_RESOURCE_DISPOSED':
+      return ERROR_CODE.ERR_RESOURCE_DISPOSED;
+    case 'ERR_ASSERTATION_FAILED':
+      return ERROR_CODE.ERR_ASSERTATION_FAILED;
     default:
       return -1;
   }
@@ -104,6 +110,10 @@ export function errorCodeToString(code: number): string {
       return 'ERR_ENVIRONMENT_VARIABLE_REDECLARATION';
     case ERROR_CODE.ERR_UNEXPECTED_PROMISE:
       return 'ERR_UNEXPECTED_PROMISE';
+    case ERROR_CODE.ERR_RESOURCE_DISPOSED:
+      return 'ERR_RESOURCE_DISPOSED';
+    case ERROR_CODE.ERR_ASSERTATION_FAILED:
+      return 'ERR_ASSERTATION_FAILED';
     default:
       return 'Unknown error';
   }

@@ -6,3 +6,39 @@ export type Dict<T> = {
 export type MaybePromise<T> = T | Promise<T>;
 
 export type LooseAutocomplete<T extends string | number | symbol> = T | Omit<string, T>;
+
+export type GenericFunction<TArgs = any, TResult = unknown> = TArgs extends never ?
+  () => TResult :
+  (...args: TArgs[]) => TResult;
+
+
+export type PrimitiveDataType = 
+  | 'string'
+  | 'number'
+  | 'boolean'
+  | 'undefined'
+  | 'function'
+  | 'object'
+  | 'symbol'
+  | 'bigint';
+
+export type DataType = PrimitiveDataType | 'list';
+
+export interface DT {
+  string: string;
+  number: number;
+  boolean: boolean;
+  undefined: undefined;
+  function: GenericFunction;
+  object: object;
+  symbol: symbol;
+  bigint: bigint;
+  list: any[];
+}
+
+export type ObjectValues<T extends object> = T[keyof T];
+export type ObjectKeys<T extends object> = keyof T;
+
+export type Writable<T> = {
+  -readonly [K in keyof T]: T[K];
+}
