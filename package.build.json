@@ -1,6 +1,6 @@
 {
-  "name": "modelx",
-  "version": "1.0.1",
+  "name": "math-forge",
+  "version": "1.0.0",
   "main": "index.js",
   "license": "AGPL-3.0-only",
   "repository": "https://github.com/gitlab-az1/modelx.git",
