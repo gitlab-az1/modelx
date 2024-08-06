@@ -51,32 +51,47 @@ export class Environment {
   }
 
   public define(key: string, value: string | number | boolean | GenericFunction): Either<Exception, void> {
-    const isString = str(key);
-    if(isString.isLeft()) return isString;
+    try {
+      const isString = str(key);
+      if(isString.isLeft()) return isString;
 
-    // eslint-disable-next-line no-extra-boolean-cast
-    if(this._constants.has(key)) return left(new Exception(`Cannot redeclare variable "${key}"`, 'ERR_ENVIRONMENT_VARIABLE_REDECLARATION'));
+      // eslint-disable-next-line no-extra-boolean-cast
+      if(this._constants.has(key)) return left(new Exception(`Cannot redeclare variable "${key}"`, 'ERR_ENVIRONMENT_VARIABLE_REDECLARATION'));
 
-    const isValue = val(value);
-    if(isValue.isLeft()) return isValue;
+      const isValue = val(value);
+      if(isValue.isLeft()) return isValue;
 
-    this._constants.set(key, value);
-    return right(void 0);
+      this._constants.set(key, value);
+      return right(void 0);
+    } catch (e: any) {
+      setLastError(e);
+      throw e;
+    }
   }
 
   public defined(key: string): boolean {
-    assertString(key);
-    return this._constants.has(key);
+    try {
+      assertString(key);
+      return this._constants.has(key);
+    } catch (e: any) {
+      setLastError(e);
+      throw e;
+    }
   }
 
   public declare(key: string, value: string | number | boolean | GenericFunction | null): void {
-    assertString(key);
-    assertValue(value);
+    try {
+      assertString(key);
+      assertValue(value);
 
-    if(value === null) {
-      this._variables.delete(key);
-    } else {
-      this._variables.set(key, value);
+      if(value === null) {
+        this._variables.delete(key);
+      } else {
+        this._variables.set(key, value);
+      }
+    } catch (e: any) {
+      setLastError(e);
+      throw e;
     }
   }
 
@@ -85,37 +100,47 @@ export class Environment {
   }
 
   public get<K extends keyof DefaultEnvironment, T extends string | number | boolean | GenericFunction = DefaultEnvironment[K]>(key: LooseAutocomplete<K>): T | null {
-    assertString(key);
+    try {
+      assertString(key);
 
-    if(this._constants.has(key)) return this._constants.get(key) as any;
-    if(this._variables.has(key)) return this._variables.get(key) as any;
+      if(this._constants.has(key)) return this._constants.get(key) as any;
+      if(this._variables.has(key)) return this._variables.get(key) as any;
 
-    if(this._evaluatedFlags.has(key)) return this._evaluatedFlags.get(key) as any;
-    if(!this._flagsRegistry.has(key)) return null;
+      if(this._evaluatedFlags.has(key)) return this._evaluatedFlags.get(key) as any;
+      if(!this._flagsRegistry.has(key)) return null;
 
-    const result = this.#eval(key);
+      const result = this.#eval(key);
 
-    if(isThenable(result)) {
-      throw new Exception(`Flag "${key}" cannot be synchronously evaluated.`, 'ERR_UNEXPECTED_PROMISE');
+      if(isThenable(result)) {
+        throw new Exception(`Flag "${key}" cannot be synchronously evaluated.`, 'ERR_UNEXPECTED_PROMISE');
+      }
+
+      this._evaluatedFlags.set(key, result);
+      return result as any; 
+    } catch (e: any) {
+      setLastError(e);
+      throw e;
     }
-
-    this._evaluatedFlags.set(key, result);
-    return result as any;
   }
 
   public async getAsync<K extends keyof DefaultEnvironment, T extends string | number | boolean | GenericFunction = DefaultEnvironment[K]>(key: LooseAutocomplete<K>): Promise<T | null> {
-    assertString(key);
+    try {
+      assertString(key);
 
-    if(this._constants.has(key)) return this._constants.get(key) as any;
-    if(this._variables.has(key)) return this._variables.get(key) as any;
+      if(this._constants.has(key)) return this._constants.get(key) as any;
+      if(this._variables.has(key)) return this._variables.get(key) as any;
 
-    if(this._evaluatedFlags.has(key)) return this._evaluatedFlags.get(key) as any;
-    if(!this._flagsRegistry.has(key)) return null;
+      if(this._evaluatedFlags.has(key)) return this._evaluatedFlags.get(key) as any;
+      if(!this._flagsRegistry.has(key)) return null;
 
-    const result = await this.#eval(key);
-    this._evaluatedFlags.set(key, result);
+      const result = await this.#eval(key);
+      this._evaluatedFlags.set(key, result);
 
-    return result as any;
+      return result as any;
+    } catch (e: any) {
+      setLastError(e);
+      throw e;
+    }
   }
 
   #eval(flag: string): MaybePromise<string | number | boolean | GenericFunction> {

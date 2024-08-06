@@ -1,4 +1,5 @@
 import { isThenable } from '../@internals/util';
+import { env, setLastError } from '../environment';
 import { Either, left, right } from '../@internals/either';
 import { ProcessContext, type ProcessExecutor, Processor, ProcessorType } from './core';
 
@@ -8,6 +9,7 @@ export class InheritCPUProcessor implements Processor {
 
   public constructor() {
     this.#startDate = new Date();
+    void env;
   }
 
   public get $type(): ProcessorType {
@@ -34,6 +36,7 @@ export class InheritCPUProcessor implements Processor {
           .then(response => void resolve(right(response)))
           .catch(err => void resolve(left(err)));
       } catch (err: any) {
+        setLastError(err);
         resolve(left(err));
       }
     });

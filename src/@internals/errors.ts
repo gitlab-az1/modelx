@@ -22,6 +22,8 @@ export const enum ERROR_CODE {
   ERR_UNEXPECTED_PROMISE = 1016,
   ERR_RESOURCE_DISPOSED = 1017,
   ERR_ASSERTATION_FAILED = 1018,
+  ERR_TOKEN_CANCELLED = 1019,
+  ERR_NO_CSPRNG = 1020,
 }
 
 
@@ -67,6 +69,10 @@ export function stringToErrno(code: keyof typeof ERROR_CODE): number {
       return ERROR_CODE.ERR_RESOURCE_DISPOSED;
     case 'ERR_ASSERTATION_FAILED':
       return ERROR_CODE.ERR_ASSERTATION_FAILED;
+    case 'ERR_TOKEN_CANCELLED':
+      return ERROR_CODE.ERR_TOKEN_CANCELLED;
+    case 'ERR_NO_CSPRNG':
+      return ERROR_CODE.ERR_NO_CSPRNG;
     default:
       return -1;
   }
@@ -114,6 +120,10 @@ export function errorCodeToString(code: number): string {
       return 'ERR_RESOURCE_DISPOSED';
     case ERROR_CODE.ERR_ASSERTATION_FAILED:
       return 'ERR_ASSERTATION_FAILED';
+    case ERROR_CODE.ERR_TOKEN_CANCELLED:
+      return 'ERR_TOKEN_CANCELLED';
+    case ERROR_CODE.ERR_NO_CSPRNG:
+      return 'ERR_NO_CSPRNG';
     default:
       return 'Unknown error';
   }

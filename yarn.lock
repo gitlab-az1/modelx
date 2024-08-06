@@ -1360,6 +1360,19 @@
   dependencies:
     "@sinonjs/commons" "^3.0.0"
 
+"@ts-overflow/async@^1.0.0":
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/@ts-overflow/async/-/async-1.0.0.tgz#b1a1d415edd124ac585b7bb651e1c69bb46ceec5"
+  integrity sha512-xXLtwzS3Z8sMomIV+sBqAAU5dzbgMcg3AJVYmp+uSPc6+JTSxeDYAVHuadOWEGjM2MVY7k8E9EA8MPLYUG5l0Q==
+  dependencies:
+    crypto-js "^4.2.0"
+    next-math "^1.0.1"
+
+"@ts-overflow/node-framework@^1.0.1":
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/@ts-overflow/node-framework/-/node-framework-1.0.1.tgz#2299e71fecc58e595245ad0f3d86f983333e3109"
+  integrity sha512-9RrvhNPDQcCniLTE7+mHg0uW6CamK2iHJxEcK5Jjd87vpBK3l8D298ohVGZq/WbMzs+n8XSse6PMhDdwC8Djgw==
+
 "@types/babel__core@^7.1.14":
   version "7.20.5"
   resolved "https://registry.yarnpkg.com/@types/babel__core/-/babel__core-7.20.5.tgz#3df15f27ba85319caa07ba08d0721889bb39c017"
@@ -1819,6 +1832,13 @@ buffer-from@^1.0.0:
   resolved "https://registry.yarnpkg.com/buffer-from/-/buffer-from-1.1.2.tgz#2b146a6fd72e80b4f55d255f35ed59a3a9a41bd5"
   integrity sha512-E+XQCRwSbaaiChtv6k6Dwgc+bx+Bs6vuKJHHl5kox/BaKbhiXzqQOwK4cO22yElGp2OCmjwVhT3HmxgyPGnJfQ==
 
+bufferutil@^4.0.8:
+  version "4.0.8"
+  resolved "https://registry.yarnpkg.com/bufferutil/-/bufferutil-4.0.8.tgz#1de6a71092d65d7766c4d8a522b261a6e787e8ea"
+  integrity sha512-4T53u4PdgsXqKaIctwF8ifXlRTTmEPJ8iEPWFdGZvcf7sbwYo6FKFEX9eNNAnzFZ7EzJAQ3CJeOtCRA4rDp7Pw==
+  dependencies:
+    node-gyp-build "^4.3.0"
+
 call-bind@^1.0.2, call-bind@^1.0.5, call-bind@^1.0.6, call-bind@^1.0.7:
   version "1.0.7"
   resolved "https://registry.yarnpkg.com/call-bind/-/call-bind-1.0.7.tgz#06016599c40c56498c18769d2730be242b6fa3b9"
@@ -2002,6 +2022,11 @@ cross-spawn@^7.0.2, cross-spawn@^7.0.3:
     path-key "^3.1.0"
     shebang-command "^2.0.0"
     which "^2.0.1"
+
+crypto-js@^4.2.0:
+  version "4.2.0"
+  resolved "https://registry.yarnpkg.com/crypto-js/-/crypto-js-4.2.0.tgz#4d931639ecdfd12ff80e8186dba6af2c2e856631"
+  integrity sha512-KALDyEYgpY+Rlob/iriUtjV6d5Eq+Y191A5g4UqLAi8CyGP9N1+FdVbkc1SxKc2r4YAYqG8JzO2KGL+AizD70Q==
 
 data-view-buffer@^1.0.1:
   version "1.0.1"
@@ -3560,6 +3585,11 @@ node-environment-flags@^1.0.5:
   dependencies:
     object.getownpropertydescriptors "^2.0.3"
     semver "^5.7.0"
+
+node-gyp-build@^4.3.0:
+  version "4.8.1"
+  resolved "https://registry.yarnpkg.com/node-gyp-build/-/node-gyp-build-4.8.1.tgz#976d3ad905e71b76086f4f0b0d3637fe79b6cda5"
+  integrity sha512-OSs33Z9yWr148JZcbZd5WiAXhh/n9z8TxQcdMhIOlpN9AhWpLfvVFO73+m77bBABQMaY9XSvIa+qk0jlI7Gcaw==
 
 node-int64@^0.4.0:
   version "0.4.0"

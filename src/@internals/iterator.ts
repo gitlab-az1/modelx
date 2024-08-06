@@ -56,7 +56,7 @@ export abstract class AbstractIterator<T> {
 
 export class LazyIterator<T> extends AbstractIterator<T> implements IDisposable {
   #collection: T[];
-  #cursor: number = -1;
+  #cursor: number = 0;
 
   public constructor(items: Iterable<T>) {
     super();
