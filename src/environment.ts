@@ -191,8 +191,9 @@ export function createGlobal(): void {
   }
 }
 
-export function setLastError(err: Error) {
+export function setLastError<T extends Error = Error>(err: T): T {
   lastError = err;
+  return err;
 }
 
 export function env(): Environment {

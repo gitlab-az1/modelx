@@ -2,6 +2,7 @@ import math from 'next-math';
 import { isTypedArray } from 'util/types';
 
 import { Exception } from './errors';
+import { setLastError } from '../environment';
 
 
 export const PRIMITIVE_BYTE_SIZE = Object.freeze({
@@ -186,15 +187,20 @@ function _simpleSizeof(obj: any): number {
 
 
 export function sizeof(x: any): number {
-  let size = 0;
+  try {
+    let size = 0;
 
-  if(typeof x === 'object' && x !== null) {
-    size = _complexSizeof(x) ?? _calculator(new WeakSet())(x);
-  } else {
-    size = _simpleSizeof(x);
+    if(typeof x === 'object' && x !== null) {
+      size = _complexSizeof(x) ?? _calculator(new WeakSet())(x);
+    } else {
+      size = _simpleSizeof(x);
+    }
+
+    return size;
+  } catch (err: any) {
+    setLastError(err);
+    throw err;
   }
-
-  return size;
 }
 
 export default sizeof;

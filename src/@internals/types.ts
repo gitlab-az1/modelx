@@ -5,6 +5,10 @@ export type Dict<T> = {
 
 export type MaybePromise<T> = T | Promise<T>;
 
+export type MaybeArray<T> = T | T[];
+
+export type ArrayValues<T> = T extends Array<infer V> ? V : never;
+
 export type LooseAutocomplete<T extends string | number | symbol> = T | Omit<string, T>;
 
 export type GenericFunction<TArgs = any, TResult = unknown> = TArgs extends never ?
@@ -45,3 +49,6 @@ export type Writable<T> = {
 
 
 export type BinaryHolder = Buffer | Uint8Array | ArrayBuffer | SharedArrayBuffer | ArrayBufferView;
+
+
+export type Interval = readonly [number, number];

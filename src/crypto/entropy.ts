@@ -1,3 +1,4 @@
+import { assert } from '../@internals/util';
 import { setLastError } from '../environment';
 import * as promises from '../@internals/async';
 import { Exception } from '../@internals/errors';
@@ -37,6 +38,13 @@ export const legacyDefaultEntropyDevice: EntropyDevice = Object.freeze<EntropyDe
 
   invoke: Object.freeze(function(stopLength: number = 64, token: ICancellationToken = CancellationToken.None) {
     return promises.withAsyncBody<Uint8Array>(async (resolve, reject) => {
+      try {
+        assert(typeof stopLength === 'number' && stopLength > 2 && Number.isInteger(stopLength) && Number.isFinite(stopLength));
+      } catch (err: any) {
+        setLastError(err);
+        throw err;
+      }
+
       token.onCancellationRequested(reason => {
         const err = new Exception(`Asynchronous operation was cancelled by '${reason ? String(reason) : 'unknown reason'}'`, 'ERR_TOKEN_CANCELLED');
 

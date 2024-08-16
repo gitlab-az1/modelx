@@ -1,9 +1,11 @@
+import Environment from '../environment';
 import { Either } from '../@internals/either';
 
 
 export interface ProcessContext<C> {
   readonly $payload?: C;
   readonly stime: number;
+  readonly $env: Environment;
   readonly processorType: Exclude<Lowercase<keyof typeof ProcessorType>, 'inherit'>;
 }
 

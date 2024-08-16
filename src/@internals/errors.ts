@@ -24,6 +24,7 @@ export const enum ERROR_CODE {
   ERR_ASSERTATION_FAILED = 1018,
   ERR_TOKEN_CANCELLED = 1019,
   ERR_NO_CSPRNG = 1020,
+  ERR_FILE_NOT_FOUND = 1021,
 }
 
 
@@ -73,6 +74,8 @@ export function stringToErrno(code: keyof typeof ERROR_CODE): number {
       return ERROR_CODE.ERR_TOKEN_CANCELLED;
     case 'ERR_NO_CSPRNG':
       return ERROR_CODE.ERR_NO_CSPRNG;
+    case 'ERR_FILE_NOT_FOUND':
+      return ERROR_CODE.ERR_FILE_NOT_FOUND;
     default:
       return -1;
   }
@@ -124,6 +127,8 @@ export function errorCodeToString(code: number): string {
       return 'ERR_TOKEN_CANCELLED';
     case ERROR_CODE.ERR_NO_CSPRNG:
       return 'ERR_NO_CSPRNG';
+    case ERROR_CODE.ERR_FILE_NOT_FOUND:
+      return 'ERR_FILE_NOT_FOUND';
     default:
       return 'Unknown error';
   }

@@ -1,4 +1,5 @@
 import { isPlainObject } from './util';
+import { setLastError } from '../environment';
 import { type Either, left, right } from './either';
 
 
@@ -13,6 +14,7 @@ export function jsonSafeParser<T>(data: string): Either<Error, T> {
     const d = JSON.parse(data);
     return right(d);
   } catch (err: any) {
+    setLastError(err);
     return left(err instanceof Error ? err : new Error(err.message));
   }
 }
@@ -54,7 +56,7 @@ export function jsonSafeStringify<T>(data: T, replacer?: ((this: any, key: strin
     const safeData = Array.isArray(data) ? _replaceArrayCirculars(data) : _replaceObjectCirculars(data);
     return right(JSON.stringify(safeData, replacer as unknown as any, space));
   } catch (err: any) {
-    // console.warn(err);
+    setLastError(err);
     return left(err);
   }
 }

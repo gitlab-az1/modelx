@@ -11,7 +11,8 @@
     "test:watch": "clear && tsnd -r tsconfig-paths/register --transpile-only --respawn --ignore-watch node_modules src/test.ts",
     "hot": "tsc --noEmit && yarn build && clear && node ./dist/index.js && rm -rf ./dist/",
     "test": "clear && yarn build && clear && NODE_ENV=test node ./dist/test.js && rm -rf ./dist/",
-    "spec": "clear && tsc --noEmit && NODE_ENV=test jest --verbose --runInBand"
+    "spec": "clear && tsc --noEmit && NODE_ENV=test jest --verbose --runInBand",
+    "mkns": "yarn build && node ./build-namespaces.js --ignore tpne"
   },
   "devDependencies": {
     "@babel/cli": "^7.24.5",
@@ -22,6 +23,7 @@
     "@babel/plugin-transform-typescript": "^7.24.5",
     "@babel/preset-env": "^7.24.5",
     "@babel/preset-typescript": "^7.24.1",
+    "@types/crypto-js": "^4.2.2",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.12.10",
     "@typescript-eslint/eslint-plugin": "7.8.0",
@@ -35,6 +37,8 @@
     "@ts-overflow/async": "^1.0.0",
     "@ts-overflow/node-framework": "^1.0.1",
     "bufferutil": "^4.0.8",
+    "crypto-js": "^4.2.0",
+    "jpeg-js": "^0.4.4",
     "next-math": "^1.0.1"
   }
 }

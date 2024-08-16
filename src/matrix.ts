@@ -129,7 +129,7 @@ export class Matrix {
             if(o === 'outer') {
               out?.set(i, j, this.#data[i][j] * t);
             } else {
-              this.#data[i][j] *= t;
+              this.#data[i][j] = this.#data[i][j] * t;
             }
           }
         }

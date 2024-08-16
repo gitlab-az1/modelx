@@ -3,8 +3,8 @@ import { assert } from '../@internals/util';
 import { setLastError } from '../environment';
 import * as promises from '../@internals/async';
 import { Exception } from '../@internals/errors';
-import { type EntropyBufferRequest, EntropyDevice, EntropyDeviceStatus, isEntropyDevice } from './entropy';
 import { CancellationToken, ICancellationToken, isCancellationToken } from '../@internals/cancellation';
+import { type EntropyBufferRequest, EntropyDevice, EntropyDeviceStatus, isEntropyDevice } from './entropy';
 
 
 export function generateRandomBytes(len: number, token?: ICancellationToken): Promise<Buffer>;
@@ -99,13 +99,22 @@ function getEntropy(dev: EntropyDevice | EntropyBufferRequest, token: ICancellat
 
   return promises.withAsyncBody(async (resolve, reject) => {
     token?.onCancellationRequested(reason => {
-      reject(new Exception(`Asynchronous operation was cancelled by '${reason ? String(reason) : 'unknown reason'}'`, 'ERR_TOKEN_CANCELLED'));
+      const err = new Exception(`Asynchronous operation was cancelled by '${reason ? String(reason) : 'unknown reason'}'`, 'ERR_TOKEN_CANCELLED');
+
+      setLastError(err);
+      reject(err);
     });
 
     try {
       if(isEntropyDevice(dev)) {
         const status = await dev.status();
-        if(status !== EntropyDeviceStatus.Idle) return void reject(new Exception(`Cannot open '%.${dev.brand}'`, 'ERR_UNSUPPORTED_OPERATION'));
+
+        if(status !== EntropyDeviceStatus.Idle) return (() => {
+          const err = new Exception(`Cannot open '%.${dev.brand}'`, 'ERR_UNSUPPORTED_OPERATION');
+
+          setLastError(err);
+          reject(err);
+        })();
   
         const deviceBuffer = await dev.invoke(64, token);
     

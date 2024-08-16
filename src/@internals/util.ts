@@ -1,61 +1,66 @@
 import { Exception } from './errors';
+import { setLastError } from '../environment';
 import type { DT, ObjectKeys } from './types';
 import { Either, left, right } from './either';
 
 
 export function assertString(value: unknown, msg?: string): asserts value is string {
   if(!value || typeof value !== 'string') {
-    throw new Exception(msg || `Cannot use 'typeof ${typeof value}' as 'typeof string'`, 'ERR_INVALID_TYPE', {
+    throw setLastError(new Exception(msg || `Cannot use 'typeof ${typeof value}' as 'typeof string'`, 'ERR_INVALID_TYPE', {
       actual: value,
       expected: 'typeof string',
-    });
+    }));
   }
 }
 
 export function assertNumber(value: unknown, msg?: string): asserts value is number {
   if(!value || typeof value !== 'string') {
-    throw new Exception(msg || `Cannot use 'typeof ${typeof value}' as 'typeof number'`, 'ERR_INVALID_TYPE', {
+    throw setLastError(new Exception(msg || `Cannot use 'typeof ${typeof value}' as 'typeof number'`, 'ERR_INVALID_TYPE', {
       actual: value,
       expected: 'typeof number',
-    });
+    }));
   }
 }
 
 export function assert(condition: boolean | number | (() => number | boolean), msg?: string): asserts condition {
-  if(typeof condition === 'function') {
-    const result = condition();
-
-    if(isThenable(result)) {
-      throw new Exception(`Cannot assert an asynchronous result of 'typeof ${result.toString()}'`, 'ERR_UNEXPECTED_PROMISE');
-    }
-
-    switch(typeof result) {
-      case 'boolean':
-        if(!result) {
-          throw new Exception(msg || `Assertation failed for 'typeof ${typeof result}'`, 'ERR_ASSERTATION_FAILED');
-        }
-
-        break;
-      case 'number': {
-        if(result === 0 || result < 0) {
-          throw new Exception(msg || `Assertation failed for 'typeof ${typeof result}'`, 'ERR_ASSERTATION_FAILED');
-        }
-
-        break;
+  try {
+    if(typeof condition === 'function') {
+      const result = condition();
+  
+      if(isThenable(result)) {
+        throw new Exception(`Cannot assert an asynchronous result of 'typeof ${result.toString()}'`, 'ERR_UNEXPECTED_PROMISE');
       }
-      default:
-        throw new Exception(`Unexpected 'typeof ${typeof result}' as assertation type`, 'ERR_INVALID_TYPE');
+  
+      switch(typeof result) {
+        case 'boolean':
+          if(!result) {
+            throw new Exception(msg || `Assertation failed for 'typeof ${typeof result}'`, 'ERR_ASSERTATION_FAILED');
+          }
+  
+          break;
+        case 'number': {
+          if(result === 0 || result < 0) {
+            throw new Exception(msg || `Assertation failed for 'typeof ${typeof result}'`, 'ERR_ASSERTATION_FAILED');
+          }
+  
+          break;
+        }
+        default:
+          throw new Exception(`Unexpected 'typeof ${typeof result}' as assertation type`, 'ERR_INVALID_TYPE');
+      }
+    } else if(typeof condition === 'number') {
+      if(condition === 0 || condition < 0) {
+        throw new Exception(msg || `Assertation failed for 'typeof ${typeof condition}'`, 'ERR_ASSERTATION_FAILED');
+      }
+    } else if(typeof condition === 'boolean') {
+      if(!condition) {
+        throw new Exception(msg || `Assertation failed for 'typeof ${typeof condition}'`, 'ERR_ASSERTATION_FAILED');
+      }
+    } else {
+      throw new Exception(`Unexpected 'typeof ${typeof condition}' as assertation type`, 'ERR_INVALID_TYPE');
     }
-  } else if(typeof condition === 'number') {
-    if(condition === 0 || condition < 0) {
-      throw new Exception(msg || `Assertation failed for 'typeof ${typeof condition}'`, 'ERR_ASSERTATION_FAILED');
-    }
-  } else if(typeof condition === 'boolean') {
-    if(!condition) {
-      throw new Exception(msg || `Assertation failed for 'typeof ${typeof condition}'`, 'ERR_ASSERTATION_FAILED');
-    }
-  } else {
-    throw new Exception(`Unexpected 'typeof ${typeof condition}' as assertation type`, 'ERR_INVALID_TYPE');
+  } catch (err: any) {
+    throw setLastError(err);
   }
 }
 

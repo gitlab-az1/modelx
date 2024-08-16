@@ -22,6 +22,7 @@ export class InheritCPUProcessor implements Processor {
 
   #callAsync<R, T>(executor: ProcessExecutor<R, T>, ctx?: T): Promise<Either<Error, R>> {
     const context = {
+      $env: env(),
       $payload: ctx,
       processorType: 'cpu',
       stime: this.#startDate.getTime(),
