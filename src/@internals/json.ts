@@ -95,7 +95,7 @@ function _replaceObjectCirculars(obj: any): any {
             safeValues[prop] = typeof obj[prop][Symbol.toStringTag] === 'function' ? obj[prop][Symbol.toStringTag]() : obj[prop][Symbol.toStringTag];
           }
         } else {
-          safeValues[prop] = `<InstanceRef *${++refsCount}>${obj[prop].constructor.name ? (' (' + obj[prop].constructor.name + ')') : ''}`;
+          safeValues[prop] = `<InstanceRef *${++refsCount}${obj[prop].constructor.name ? (' (' + obj[prop].constructor.name + ')') : ''}>`;
         }
       } else if(_isCircularObject(obj[prop])) {
         safeValues[prop] = `[Circular *${++circularCount}]`;

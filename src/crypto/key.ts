@@ -259,10 +259,6 @@ export class SymmetricKey {
     };
   }
 
-  public __raw__() {
-    return this.#buffer;
-  }
-
   public get byteLength(): number {
     return this.#algorithm.length;
   }

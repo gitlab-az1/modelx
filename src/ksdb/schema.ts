@@ -99,7 +99,7 @@ export type FieldValue<F extends SchemaField | FieldsWithoutArray> = (
   F extends { type: 'decimal' } ? number | null :
 
   F extends ({ type: 'datetime'; notNull: true } | { type: 'datetime'; default: Date | string | number }) ? Date :
-  F extends { type: 'datetime' } ? Date | null :
+  F extends { type: 'datetime' } ? Date | string | number | null :
 
   F extends ({ type: 'bool'; notNull: true } | { type: 'bool'; default: boolean }) ? boolean :
   F extends { type: 'bool' } ? boolean | null :
@@ -108,6 +108,7 @@ export type FieldValue<F extends SchemaField | FieldsWithoutArray> = (
   never
 );
 
+export type SchemaToObject<T extends Dict<SchemaField>> = { [K in keyof T]: FieldValue<T[K]> };
 export type SchemaValue<T extends Dict<SchemaField>, K extends keyof T> = FieldValue<T[K]>;
 
 type NormalizedField<F extends SchemaField> = (
@@ -125,8 +126,18 @@ export class Schema<T extends Dict<SchemaField>> {
   readonly #props: T;
 
   public constructor(_props: T, _options?: SchemaOptions) {
-    this.#props = _props;
-    void _options;
+    const o = Object.assign({}, _options, { includeTimestamps: true });
+
+    this.#props = o.includeTimestamps === true ? Object.assign({}, _props, {
+      created_at: {
+        type: 'datetime',
+        notNull: true,
+      },
+      updated_at: {
+        type: 'datetime',
+        notNull: true,
+      },
+    } satisfies Dict<SchemaField>) : _props;
   }
 
   public fields(): readonly string[] {

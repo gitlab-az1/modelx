@@ -1,9 +1,9 @@
 import { setLastError } from '../environment';
 import { Exception } from '../@internals/errors';
-import { assertString } from '../@internals/util';
 import { generateRandomBytes } from '../crypto/random';
 import type { ArrayValues, Dict } from '../@internals/types';
-import { ArrayField, KSDB_DATA_TYPE, Schema, type FieldValue, type SchemaField } from './schema';
+import { assertArray, assertString } from '../@internals/util';
+import { ArrayField, KSDB_DATA_TYPE, Schema, SchemaToObject, type FieldValue, type SchemaField } from './schema';
 
 
 export async function generateComplexDocumentId(): Promise<Buffer> {
@@ -64,47 +64,129 @@ export async function generateDocumentId(): Promise<Buffer> {
 }
 
 
+export interface DocumentObject {
+  readonly _id: string;
+}
+
+
+export type DocumentOptions = {
+  avoidDynamicArrays?: boolean;
+}
 
 export class Document<T extends Dict<SchemaField>> {
-  public static async create<T extends Dict<SchemaField>>(schema: Schema<T>, items: { [K in keyof T]: FieldValue<T[K]> }): Promise<Document<T>> {
+  public static async create<T extends Dict<SchemaField>>(schema: Schema<T>, items: Partial<SchemaToObject<T>>, options?: DocumentOptions): Promise<Document<T>> {
     const f = {} as Dict<any>;
     
     for(const field of schema.fields()) {
-      if(!items[field] && items[field] != null) {
+      if(!items[field] && (items[field] != null && (<any>schema.describe(field)).notNull !== true)) {
         const descriptor = schema.describeNormalized<ArrayField>(field);
         if(descriptor.type !== KSDB_DATA_TYPE.ARRAY) continue;
 
         f[field] = typeof descriptor.length === 'number' ? new Array(descriptor.length) : [];
+      } else if(field === 'created_at' || field === 'updated_at') {
+        f[field] = new Date();
       } else {
         f[field] = items[field];
       }
     }
 
     const id = await generateDocumentId();
-    return new Document(schema, f, id);
+    return new Document(schema, f, id, options);
   }
 
   readonly #id: Buffer;
   readonly #schema: Schema<T>;
+  readonly #o: DocumentOptions;
   #fields: Dict<any> = {};
 
   private constructor(
     _schema: Schema<T>,
     _fields: Dict<any>,
-    _idBuffer: Buffer // eslint-disable-line comma-dangle
+    _idBuffer: Buffer,
+    _options?: DocumentOptions // eslint-disable-line comma-dangle
   ) {
     this.#id = _idBuffer;
     this.#schema = _schema;
+
+    this.#o = Object.assign({}, _options, {
+      avoidDynamicArrays: true,
+    } satisfies DocumentOptions);
+
+    for(const prop in _fields) {
+      const d = _schema.describeNormalized<ArrayField>(prop);
+      if(d.type !== KSDB_DATA_TYPE.ARRAY) continue;
+
+      if(typeof d.length !== 'number' && this.#o.avoidDynamicArrays !== false) {
+        throw setLastError(new Exception(`You must specify the length of array field '${prop}'`, 'ERR_INVALID_ARGUMENT'));
+      }
+    }
+
     this.#fields = _fields;
+
+    for(const key of this.#schema.fields()) {
+      const d = this.#schema.describe(key);
+
+      if(!this.#fields[key] && typeof d.default !== 'undefined') {
+        this.#fields[key] = d.default;
+      }
+    }
+
+    for(const prop in this.#fields) {
+      const d = _schema.describeNormalized(prop);
+
+      if(d.type === KSDB_DATA_TYPE.ARRAY) {
+        for(const item of this.#fields[prop]) {
+          this.#assertArrayValue(prop, item);
+        }
+      } else {
+        this.#assertFieldValue(prop, this.#fields[prop]);
+      }
+    }
   }
 
   public get _id(): string {
     return this.#id.toString().replace(/-/g, '');
   }
 
-  public push<K extends keyof T>(field: K, value: ArrayValues<FieldValue<T[K]>>, index?: number): void {
+  public set<K extends keyof T>(field: K, value: FieldValue<T[K]>): void {
+    assertString(field);
+
+    if(Array.isArray(this.#fields[field])) {
+      if(!Array.isArray(value)) {
+        value = [value] as any;
+      }
+
+      assertArray(value);
+
+      if(value.length <= this.#fields[field].length) {
+        for(let i = 0; i < value.length; i++) {
+          this.#assertArrayValue(field, value[i]);
+          this.#fields[field][i] = value[i];
+        }
+      } else {
+        for(let i = 0; i < this.#fields[field].length; i++) {
+          this.#assertArrayValue(field, value[i]);
+          this.#fields[field][i] = value[i];
+        }
+      }
+    } else {
+      this.#assertFieldValue(field, value);
+      this.#fields[field] = value;
+    }
+  }
+
+  public get<K extends keyof T, R extends FieldValue<T[K]>>(field: K): R {
+    assertString(field);
+    
+    const d = this.#schema.describeNormalized<ArrayField>(field);
+    return d.type === KSDB_DATA_TYPE.ARRAY ? [...this.#fields[field]] : this.#fields[field];
+  }
+
+  public push<K extends keyof T>(field: K, value: ArrayValues<FieldValue<T[K]>>, index?: number): number {
     this.#assertField(field, KSDB_DATA_TYPE.ARRAY);
     this.#assertArrayValue(field, value);
+
+    let i = -1;
     const fdescriptor = this.#schema.describe<ArrayField>(field);
 
     if(typeof index === 'number') {
@@ -120,13 +202,23 @@ export class Document<T extends Dict<SchemaField>> {
       }
 
       this.#fields[field][index] = value;
+      i = index;
     } else {
-      this.#fields[field].push(value);
+      i = this.#fields[field].push(value) - 1;
     }
+
+    // eslint-disable-next-line no-extra-boolean-cast
+    if(!!this.#fields.updated_at) {
+      this.#fields.updated_at = new Date();
+    }
+
+    return i;
   }
 
-  public unshift<K extends keyof T>(field: K, { index, value }: { index?: number; value?: ArrayValues<FieldValue<T[K]>> }): void {
+  public splice<K extends keyof T>(field: K, { index, value }: { index?: number; value?: ArrayValues<FieldValue<T[K]>> }): number {
     this.#assertField(field, KSDB_DATA_TYPE.ARRAY);
+
+    let resultIndex = -1;
     const fdescriptor = this.#schema.describe<ArrayField>(field);
 
     if(typeof index === 'number') {
@@ -134,9 +226,10 @@ export class Document<T extends Dict<SchemaField>> {
         index < 0 ||
         (typeof fdescriptor.length === 'number' && index > fdescriptor.length - 1)
       ) {
-        throw setLastError(new Exception(`Array index out of bounds in \`Document.unshift\` [${index}]`, 'ERR_OUT_OF_BOUNDS'));
+        throw setLastError(new Exception(`Array index out of bounds in \`Document.splice\` [${index}]`, 'ERR_OUT_OF_BOUNDS'));
       }
 
+      resultIndex = index;
       (this.#fields[field] as any[]).splice(index, 1);
       // eslint-disable-next-line no-extra-boolean-cast
     } else if(!!value) {
@@ -146,15 +239,45 @@ export class Document<T extends Dict<SchemaField>> {
         throw setLastError(new Exception(`Element 'typeof ${typeof value}' not found in array`, 'ERR_INVALID_ARGUMENT'));
       }
 
+      resultIndex = i;
       (this.#fields[field] as any[]).splice(i, 1);
     } else {
       throw setLastError(new Exception('Cannot unshift from array an undefined element or from a non-set index', 'ERR_INVALID_ARGUMENT'));
     }
 
-    if(typeof fdescriptor.length === 'number') return;
-    if(!this.#hasHolesInArray(field)) return;
+    const prevUpdateDate = this.#fields['updated_at'];
 
-    this.#resizeDynamicArray(field);
+    // eslint-disable-next-line no-extra-boolean-cast
+    if(!!this.#fields.updated_at) {
+      this.#fields.updated_at = new Date();
+    }
+
+    if(this.#o.avoidDynamicArrays !== false) return resultIndex;
+
+    try {
+      if(typeof fdescriptor.length === 'number') return resultIndex;
+      if(!this.#hasHolesInArray(field)) return resultIndex;
+
+      this.#resizeDynamicArray(field);
+      return resultIndex;
+    } catch (e: any) {
+      setLastError(e);
+
+      // eslint-disable-next-line no-extra-boolean-cast
+      if(!!this.#fields.updated_at) {
+        this.#fields.updated_at = prevUpdateDate;
+      }
+
+      throw e;
+    }
+  }
+
+  public toObject(): SchemaToObject<T> & DocumentObject {
+    return Object.assign({}, Object.freeze({ _id: this.#id.toString().replace(/-/g, '') }), this.#fields) as any;
+  }
+
+  public async save(): Promise<void> {
+    //
   }
 
   #assertField(key: any, type: KSDB_DATA_TYPE): asserts key is string {
@@ -250,7 +373,7 @@ export class Document<T extends Dict<SchemaField>> {
     }
   }
 
-  #assertArrayValue(key: string, value: any): void {
+  #assertArrayValue(key: string, value: any): void { // TODO: implement all missing checks
     this.#assertField(key, KSDB_DATA_TYPE.ARRAY);
     const descriptor = this.#schema.describeNormalized<ArrayField>(key);
 
@@ -263,6 +386,14 @@ export class Document<T extends Dict<SchemaField>> {
         if(!Number.isInteger(value)) {
           throw setLastError(new Exception(`The value '${value}' is not an integer number`, 'ERR_INVALID_ARGUMENT'));
         }
+
+        if(typeof (<any>descriptor).min === 'number' && value < (<any>descriptor).min) {
+          throw setLastError(new Exception(`The value of '${key}' must be ≥ ${(<any>descriptor).min}`, 'ERR_OUT_OF_RANGE'));
+        }
+
+        if(typeof (<any>descriptor).max === 'number' && value > (<any>descriptor).max) {
+          throw setLastError(new Exception(`The value of '${key}' must be ≤ ${(<any>descriptor).max}`, 'ERR_OUT_OF_RANGE'));
+        }
       } break;
       case KSDB_DATA_TYPE.DECIMAL: {
         if(typeof value !== 'number') {
@@ -271,6 +402,14 @@ export class Document<T extends Dict<SchemaField>> {
 
         if(Number.isInteger(value)) {
           throw setLastError(new Exception(`The value '${value}' is not an decimal number`, 'ERR_INVALID_ARGUMENT'));
+        }
+
+        if(typeof (<any>descriptor).min === 'number' && value < (<any>descriptor).min) {
+          throw setLastError(new Exception(`The value of '${key}' must be ≥ ${(<any>descriptor).min}`, 'ERR_OUT_OF_RANGE'));
+        }
+
+        if(typeof (<any>descriptor).max === 'number' && value > (<any>descriptor).max) {
+          throw setLastError(new Exception(`The value of '${key}' must be ≤ ${(<any>descriptor).max}`, 'ERR_OUT_OF_RANGE'));
         }
       } break;
       case KSDB_DATA_TYPE.ARRAY: {
@@ -290,6 +429,82 @@ export class Document<T extends Dict<SchemaField>> {
       case KSDB_DATA_TYPE.TEXT: {
         if(typeof value !== 'string') {
           throw setLastError(new Exception(`Cannot use 'typeof ${typeof value}' as a text`, 'ERR_INVALID_ARGUMENT'));
+        }
+
+        if(typeof (<any>descriptor).minLength === 'number' && value.length < (<any>descriptor).minLength) {
+          throw setLastError(new Exception(`The value of '${key}' must be a string with \`length ≥ ${(<any>descriptor).minLength}\``, 'ERR_OUT_OF_RANGE'));
+        }
+
+        if(typeof (<any>descriptor).maxLength === 'number' && value.length > (<any>descriptor).maxLength) {
+          throw setLastError(new Exception(`The value of '${key}' must be a string with \`length ≤ ${(<any>descriptor).maxLength}\``, 'ERR_OUT_OF_RANGE'));
+        }
+      } break;
+    }
+  }
+
+  #assertFieldValue(key: string, value: any): void { // TODO: implement all missing checks
+    const descriptor = this.#schema.describeNormalized<ArrayField>(key);
+
+    switch(descriptor.type) {
+      case KSDB_DATA_TYPE.INTEGER: {
+        if(typeof value !== 'number') {
+          throw setLastError(new Exception(`Cannot use 'typeof ${typeof value}' as a integer`, 'ERR_INVALID_ARGUMENT'));
+        }
+
+        if(!Number.isInteger(value)) {
+          throw setLastError(new Exception(`The value '${value}' is not an integer number`, 'ERR_INVALID_ARGUMENT'));
+        }
+
+        if(typeof (<any>descriptor).min === 'number' && value < (<any>descriptor).min) {
+          throw setLastError(new Exception(`The value of '${key}' must be ≥ ${(<any>descriptor).min}`, 'ERR_OUT_OF_RANGE'));
+        }
+
+        if(typeof (<any>descriptor).max === 'number' && value > (<any>descriptor).max) {
+          throw setLastError(new Exception(`The value of '${key}' must be ≤ ${(<any>descriptor).max}`, 'ERR_OUT_OF_RANGE'));
+        }
+      } break;
+      case KSDB_DATA_TYPE.DECIMAL: {
+        if(typeof value !== 'number') {
+          throw setLastError(new Exception(`Cannot use 'typeof ${typeof value}' as a decimal`, 'ERR_INVALID_ARGUMENT'));
+        }
+
+        if(Number.isInteger(value)) {
+          throw setLastError(new Exception(`The value '${value}' is not an decimal number`, 'ERR_INVALID_ARGUMENT'));
+        }
+
+        if(typeof (<any>descriptor).min === 'number' && value < (<any>descriptor).min) {
+          throw setLastError(new Exception(`The value of '${key}' must be ≥ ${(<any>descriptor).min}`, 'ERR_OUT_OF_RANGE'));
+        }
+
+        if(typeof (<any>descriptor).max === 'number' && value > (<any>descriptor).max) {
+          throw setLastError(new Exception(`The value of '${key}' must be ≤ ${(<any>descriptor).max}`, 'ERR_OUT_OF_RANGE'));
+        }
+      } break;
+      case KSDB_DATA_TYPE.ARRAY: {
+        throw setLastError(new Exception('Cannot arrays with more than 1 dimension', 'ERR_INVALID_ARGUMENT'));
+      } break;
+      case KSDB_DATA_TYPE.BOOLEAN: {
+        if(typeof value !== 'boolean') {
+          throw setLastError(new Exception(`Cannot use 'typeof ${typeof value}' as a boolean`, 'ERR_INVALID_ARGUMENT'));
+        }
+      } break;
+      case KSDB_DATA_TYPE.DATETIME: {
+        if(value instanceof Date) return;
+        if(['string', 'number'].includes(typeof value) && !Number.isNaN(new Date(value))) return;
+
+        throw setLastError(new Exception(`Cannot use 'typeof ${typeof value}' as a datetime`, 'ERR_INVALID_ARGUMENT'));
+      } break;
+      case KSDB_DATA_TYPE.TEXT: {
+        if(typeof value !== 'string') {
+          throw setLastError(new Exception(`Cannot use 'typeof ${typeof value}' as a text`, 'ERR_INVALID_ARGUMENT'));
+        }
+
+        if(typeof (<any>descriptor).minLength === 'number' && value.length < (<any>descriptor).minLength) {
+          throw setLastError(new Exception(`The value of '${key}' must be a string with \`length ≥ ${(<any>descriptor).minLength}\``, 'ERR_OUT_OF_RANGE'));
+        }
+
+        if(typeof (<any>descriptor).maxLength === 'number' && value.length > (<any>descriptor).maxLength) {
+          throw setLastError(new Exception(`The value of '${key}' must be a string with \`length ≤ ${(<any>descriptor).maxLength}\``, 'ERR_OUT_OF_RANGE'));
         }
       } break;
     }
@@ -316,15 +531,10 @@ export class Document<T extends Dict<SchemaField>> {
     if(!this.#fields[key]) return false;
     if(!Array.isArray(this.#fields[key])) return false;
 
-    let result = false;
-
     for(let i = 0; i < this.#fields[key].length; i++) {
-      if(i in this.#fields[key]) continue;
-
-      result = true;
-      break;
+      if(!(i in this.#fields[key])) return true;
     }
 
-    return result;
+    return false;
   }
 }

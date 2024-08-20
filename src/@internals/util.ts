@@ -22,6 +22,15 @@ export function assertNumber(value: unknown, msg?: string): asserts value is num
   }
 }
 
+export function assertArray<T>(value: unknown, msg?: string): asserts value is T[] {
+  if(!Array.isArray(value)) {
+    throw setLastError(new Exception(msg || `Cannot use 'typeof ${typeof value}' as 'typeof unknown[]'`, 'ERR_INVALID_TYPE', {
+      actual: value,
+      expected: 'typeof number',
+    }));
+  }
+}
+
 export function assert(condition: boolean | number | (() => number | boolean), msg?: string): asserts condition {
   try {
     if(typeof condition === 'function') {

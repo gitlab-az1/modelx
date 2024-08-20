@@ -41,15 +41,12 @@ export const legacyDefaultEntropyDevice: EntropyDevice = Object.freeze<EntropyDe
       try {
         assert(typeof stopLength === 'number' && stopLength > 2 && Number.isInteger(stopLength) && Number.isFinite(stopLength));
       } catch (err: any) {
-        setLastError(err);
-        throw err;
+        throw setLastError(err);
       }
 
       token.onCancellationRequested(reason => {
         const err = new Exception(`Asynchronous operation was cancelled by '${reason ? String(reason) : 'unknown reason'}'`, 'ERR_TOKEN_CANCELLED');
-
-        setLastError(err);
-        reject(err);
+        reject(setLastError(err));
       });
 
       let buffer = new Uint8Array(stopLength);
