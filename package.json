@@ -1,6 +1,6 @@
 {
   "name": "ndforge",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "main": "dist/index.js",
   "repository": "https://github.com/gitlab-az1/modelx.git",
   "author": "gitlab-az1 <gitlab.az1@gmail.com>",
@@ -38,6 +38,7 @@
     "@ts-overflow/node-framework": "^1.0.1",
     "bufferutil": "^4.0.8",
     "crypto-js": "^4.2.0",
+    "cryptx-sdk": "^1.2.3",
     "jpeg-js": "^0.4.4",
     "next-math": "^1.0.1"
   }

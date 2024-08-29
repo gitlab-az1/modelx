@@ -160,3 +160,21 @@ export async function generateRandomNumber(entropyOrToken?: ICancellationToken |
   const buffer = await generateRandomBytes(1, entropyOrToken as any, token);
   return buffer[0] / 0xFF;
 }
+
+
+export function getRandomValues(bucket: Uint8Array): Uint8Array {
+  if(typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+    window.crypto.getRandomValues(bucket);
+  } else if(typeof require !== 'undefined') {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { randomBytes } = require('crypto');
+    bucket.set(randomBytes(bucket.length));
+  } else {
+    const err = new Exception('Secure random number generation is not available in this environment', 'ERR_NO_CSPRNG');
+
+    setLastError(err);
+    throw err;
+  }
+
+  return bucket;
+}

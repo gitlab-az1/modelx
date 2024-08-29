@@ -1,5 +1,4 @@
 import { isPlainObject } from './util';
-import { setLastError } from '../environment';
 import { type Either, left, right } from './either';
 
 
@@ -14,7 +13,6 @@ export function jsonSafeParser<T>(data: string): Either<Error, T> {
     const d = JSON.parse(data);
     return right(d);
   } catch (err: any) {
-    setLastError(err);
     return left(err instanceof Error ? err : new Error(err.message));
   }
 }
@@ -24,40 +22,40 @@ export function jsonSafeParser<T>(data: string): Either<Error, T> {
  * Safely stringify JSON data
  * 
  * @param {*} data The data to stringify
- * @returns {string} A JSON string or the occurred error
+ * @returns {string} A JSON string or null if an error occurred
  */
-export function jsonSafeStringify<T>(data: T): Either<Error, string>;
+export function jsonSafeStringify<T>(data: T): string | null;
 
 /**
  * Safely stringify JSON data
  * 
  * @param {*} data The data to stringify
- * @returns {string} A JSON string or the occurred error
+ * @returns {string} A JSON string or null if an error occurred
  */
-export function jsonSafeStringify<T>(data: T, replacer: ((this: any, key: string, value: any) => any), space?: string | number): Either<Error, string>;
+export function jsonSafeStringify<T>(data: T, replacer: ((this: any, key: string, value: any) => any), space?: string | number): string | null;
 /**
  * Safely stringify JSON data
  * 
  * @param {*} data The data to stringify
- * @returns {string} A JSON string or the occurred error
+ * @returns {string} A JSON string or null if an error occurred
  */
-export function jsonSafeStringify<T>(data: T, replacer?: (string | number)[] | null, space?: string | number): Either<Error, string>;
+export function jsonSafeStringify<T>(data: T, replacer?: (string | number)[] | null, space?: string | number): string | null;
 
 /**
  * Safely stringify JSON data
  * 
  * @param {*} data The data to stringify
- * @returns {string} A JSON string or the occurred error
+ * @returns {string} A JSON string or null if an error occurred
  */
-export function jsonSafeStringify<T>(data: T, replacer?: ((this: any, key: string, value: any) => any) | (string | number)[] | null, space?: string | number): Either<Error, string> {
-  if(typeof data !== 'object') return right(JSON.stringify(data));
+export function jsonSafeStringify<T>(data: T, replacer?: ((this: any, key: string, value: any) => any) | (string | number)[] | null, space?: string | number): string | null {
+  if(typeof data !== 'object' && !Array.isArray(data)) return JSON.stringify(data);
 
   try {
     const safeData = Array.isArray(data) ? _replaceArrayCirculars(data) : _replaceObjectCirculars(data);
-    return right(JSON.stringify(safeData, replacer as unknown as any, space));
+    return JSON.stringify(safeData, replacer as unknown as any, space);
   } catch (err: any) {
-    setLastError(err);
-    return left(err);
+    console.warn(err);
+    return null;
   }
 }
 
@@ -78,6 +76,9 @@ function _replaceArrayCirculars(arr: any[]): any[] {
 }
 
 function _replaceObjectCirculars(obj: any): any {
+  if(Array.isArray(obj)) return _replaceArrayCirculars(obj);
+  if(obj === null || typeof obj !== 'object') return obj;
+
   const safeValues: Record<string | number | symbol, any> = {};
   let refsCount = 0,
     circularCount = 0;
@@ -95,12 +96,12 @@ function _replaceObjectCirculars(obj: any): any {
             safeValues[prop] = typeof obj[prop][Symbol.toStringTag] === 'function' ? obj[prop][Symbol.toStringTag]() : obj[prop][Symbol.toStringTag];
           }
         } else {
-          safeValues[prop] = `<InstanceRef *${++refsCount}${obj[prop].constructor.name ? (' (' + obj[prop].constructor.name + ')') : ''}>`;
+          safeValues[prop] = `<InstanceRef *${++refsCount}>${obj[prop].constructor.name ? ' (' + obj[prop].constructor.name + ')' : ''}`;
         }
       } else if(_isCircularObject(obj[prop])) {
         safeValues[prop] = `[Circular *${++circularCount}]`;
       } else {
-        safeValues[prop] = obj[prop] === null ? null : _replaceObjectCirculars(obj[prop]);
+        safeValues[prop] = _replaceObjectCirculars(obj[prop]);
       }
     } else {
       safeValues[prop] = obj[prop];
@@ -111,7 +112,8 @@ function _replaceObjectCirculars(obj: any): any {
 }
 
 function _isInstanceOf(thing: any) {
-  return !!thing && (
+  return (
+    !!thing &&
     !isPlainObject(thing) &&
     Object.getPrototypeOf(thing) !== Object.prototype
   );
