@@ -183,3 +183,56 @@ export function strShuffle(str: string): string {
   // Convert the array back to a string and return it
   return arr.join('');
 }
+
+
+export function doHash(obj: any, hashVal: number): number {
+  switch(typeof obj) {
+    case 'object':
+      if(obj === null) return numberHash(349, hashVal);
+      if(Array.isArray(obj)) return arrayHash(obj, hashVal);
+
+      return objectHash(obj, hashVal);
+    case 'string':
+      return stringHash(obj, hashVal);
+    case 'boolean':
+      return booleanHash(obj, hashVal);
+    case 'number':
+      return numberHash(obj, hashVal);
+    case 'undefined':
+      return numberHash(937, hashVal);
+    default:
+      return numberHash(617, hashVal);
+  }
+}
+
+export function numberHash(val: number, initialHashVal: number): number {
+  return (((initialHashVal << 5) - initialHashVal) + val) | 0;  // hashVal * 31 + ch, keep as int32
+}
+
+function booleanHash(b: boolean, initialHashVal: number): number {
+  return numberHash(b ? 433 : 863, initialHashVal);
+}
+
+export function stringHash(s: string, hashVal: number) {
+  hashVal = numberHash(149417, hashVal);
+
+  for(let i = 0, length = s.length; i < length; i++) {
+    hashVal = numberHash(s.charCodeAt(i), hashVal);
+  }
+
+  return hashVal;
+}
+
+function arrayHash(arr: any[], initialHashVal: number): number {
+  initialHashVal = numberHash(104579, initialHashVal);
+  return arr.reduce((hashVal, item) => doHash(item, hashVal), initialHashVal);
+}
+
+function objectHash(obj: any, initialHashVal: number): number {
+  initialHashVal = numberHash(181387, initialHashVal);
+
+  return Object.keys(obj).sort().reduce((hashVal, key) => {
+    hashVal = stringHash(key, hashVal);
+    return doHash(obj[key], hashVal);
+  }, initialHashVal);
+}
