@@ -1,6 +1,6 @@
 {
   "name": "ndforge",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "main": "dist/index.js",
   "repository": "https://github.com/gitlab-az1/modelx.git",
   "author": "gitlab-az1 <gitlab.az1@gmail.com>",
