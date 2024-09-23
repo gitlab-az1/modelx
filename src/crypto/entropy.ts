@@ -2,7 +2,7 @@ import { assert } from '../@internals/util';
 import { setLastError } from '../environment';
 import * as promises from '../@internals/async';
 import { Exception } from '../@internals/errors';
-import { CancellationToken, ICancellationToken } from '../@internals/cancellation';
+import { CancellationToken, ICancellationToken } from '../cancellation';
 
 
 export interface EntropyDevice {

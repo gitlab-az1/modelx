@@ -32,5 +32,7 @@ export {
   unwrap,
   unwrapExpect,
   unwrapOr,
+  isNone,
+  isSome,
   option,
 } from './option';

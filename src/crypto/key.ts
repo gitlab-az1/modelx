@@ -7,8 +7,8 @@ import * as promises from '../@internals/async';
 import { Exception } from '../@internals/errors';
 import { abs, max, min, round } from '../math/native';
 import { type EntropyBufferRequest, EntropyDevice } from './entropy';
+import { CancellationToken, ICancellationToken } from '../cancellation';
 import type { BinaryHolder, LooseAutocomplete } from '../@internals/types';
-import { CancellationToken, ICancellationToken } from '../@internals/cancellation';
 
 
 export const MAX_ITERATIONS = 0x7ffffffe;

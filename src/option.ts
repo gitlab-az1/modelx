@@ -16,6 +16,15 @@ export type Some<T> = { [$type]: OptionType.Some; [$value]: T };
 export type Option<T> = None | Some<T>;
 
 
+export function isSome<T>(option: Option<T>): option is Some<T> {
+  return option[$type] === OptionType.Some;
+}
+
+export function isNone<T>(option: Option<T>): option is None {
+  return option[$type] === OptionType.None;
+}
+
+
 export const none: None = Object.freeze({ [$type]: OptionType.None });
 export const some = <T>(value: T) => ({ [$value]: value, [$type]: OptionType.Some });
 
@@ -74,6 +83,15 @@ export namespace option {
   export type None = { [$type]: OptionType.None };
   export type Some<T> = { [$type]: OptionType.Some; [$value]: T };
   export type Option<T> = None | Some<T>;
+
+
+  export function isSome<T>(option: Option<T>): option is Some<T> {
+    return option[$type] === OptionType.Some;
+  }
+  
+  export function isNone<T>(option: Option<T>): option is None {
+    return option[$type] === OptionType.None;
+  }
 
 
   export const none: None = Object.freeze({ [$type]: OptionType.None });

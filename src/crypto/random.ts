@@ -3,7 +3,7 @@ import { assert } from '../@internals/util';
 import { setLastError } from '../environment';
 import * as promises from '../@internals/async';
 import { Exception } from '../@internals/errors';
-import { CancellationToken, ICancellationToken, isCancellationToken } from '../@internals/cancellation';
+import { CancellationToken, ICancellationToken, isCancellationToken } from '../cancellation';
 import { type EntropyBufferRequest, EntropyDevice, EntropyDeviceStatus, isEntropyDevice } from './entropy';
 
 
