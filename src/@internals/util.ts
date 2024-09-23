@@ -185,7 +185,7 @@ export function strShuffle(str: string): string {
 }
 
 
-export function doHash(obj: any, hashVal: number): number {
+export function doHash(obj: any, hashVal: number = 0): number {
   switch(typeof obj) {
     case 'object':
       if(obj === null) return numberHash(349, hashVal);

@@ -2,8 +2,8 @@ import { EventEmitter } from '@ts-overflow/async/events';
 import { EventLoop } from '@ts-overflow/async/event-loop';
 import { IDisposable, Disposable } from '@ts-overflow/node-framework/disposable';
 
-import { jsonSafeStringify } from './json';
-import { Exception, Stacktrace } from './errors';
+import { jsonSafeStringify } from './@internals/json';
+import { Exception, Stacktrace } from './@internals/errors';
 
 
 export type CancellationRequestListener = (listener: (e: any) => any, thisArgs?: any, disposables?: IDisposable[]) => IDisposable;

@@ -604,3 +604,67 @@ export class IdentityMatrix extends SquareMatrix {
 function _assertPositive(input: unknown, msg?: string): asserts input is number {
   assert(typeof input === 'number' && Number.isInteger(input) && input >= 0, msg);
 }
+
+
+export function matrix_det(matrix: number[][] | Matrix): number | null {
+  if(!Array.isArray(matrix) && (!(matrix instanceof Matrix) || typeof matrix.toArray !== 'function')) {
+    throw new Exception('Invalid data format: expected number[][] or Matrix', 'ERR_INVALID_ARGUMENT');
+  }
+
+  const m: number[][] = [];
+  const arr = Array.isArray(matrix) ? matrix : matrix.toArray();
+
+  for(let i = 0; i < arr.length; i++) {
+    m[i] = [];
+
+    for(let j = 0; j < arr[i].length; j++) {
+      m[i][j] = arr[i][j];
+    }
+  }
+
+  if(m.length !== m[0].length) return null;
+  return _det(m, m.length);
+}
+
+function _det(m: number[][], n: number): number {
+  if(m[0].length === 0) return 0;
+  if(m[0].length === 1) return m[0][0];
+  if(m[0].length === 2) return m[0][0] * m[1][1] - m[0][1] * m[1][0];
+
+  let det = 0;
+  let sign = 1;
+
+  // Iterate for each element of the first row
+  for(let i = 0; i < n; i++) {
+    // Get the cofactor matrix for element matrix[0][i]
+    const cofactor = matrix_cofactor(m, 0, i, n);
+       
+    // Recursively calculate the determinant
+    det += sign * m[0][i] * _det(cofactor, n - 1);
+
+    // Alternate sign for the next cofactor
+    sign = -sign;
+  }
+
+  return det;
+}
+
+export function matrix_cofactor(matrix: number[][], p: number, q: number, n: number): number[][] {
+  const temp: number[][] = [];
+  let i = 0, j = 0;
+
+  for(let row = 0; row < n; row++) {
+    for(let col = 0; col < n; col++) {
+      if(row !== p && col !== q) {
+        temp[i][j++] = matrix[row][col];
+
+        if(j === n - 1) {
+          j = 0;
+          i++;
+        }
+      }
+    }
+  }
+
+  return temp;
+}

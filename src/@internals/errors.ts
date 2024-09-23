@@ -26,6 +26,8 @@ export const enum ERROR_CODE {
   ERR_NO_CSPRNG = 1020,
   ERR_FILE_NOT_FOUND = 1021,
   ERR_INVALID_SIGNATURE = 1022,
+  ERR_RESOURCE_LOCKED = 1023,
+  ERR_UNWRAP_NONE = 1024,
 }
 
 
@@ -77,6 +79,12 @@ export function stringToErrno(code: keyof typeof ERROR_CODE): number {
       return ERROR_CODE.ERR_NO_CSPRNG;
     case 'ERR_FILE_NOT_FOUND':
       return ERROR_CODE.ERR_FILE_NOT_FOUND;
+    case 'ERR_INVALID_SIGNATURE':
+      return ERROR_CODE.ERR_INVALID_SIGNATURE;
+    case 'ERR_RESOURCE_LOCKED':
+      return ERROR_CODE.ERR_RESOURCE_LOCKED;
+    case 'ERR_UNWRAP_NONE':
+      return ERROR_CODE.ERR_UNWRAP_NONE;
     default:
       return -1;
   }
@@ -130,6 +138,12 @@ export function errorCodeToString(code: number): string {
       return 'ERR_NO_CSPRNG';
     case ERROR_CODE.ERR_FILE_NOT_FOUND:
       return 'ERR_FILE_NOT_FOUND';
+    case ERROR_CODE.ERR_INVALID_SIGNATURE:
+      return 'ERR_INVALID_SIGNATURE';
+    case ERROR_CODE.ERR_RESOURCE_LOCKED:
+      return 'ERR_RESOURCE_LOCKED';
+    case ERROR_CODE.ERR_UNWRAP_NONE:
+      return 'ERR_UNWRAP_NONE';
     default:
       return 'Unknown error';
   }
