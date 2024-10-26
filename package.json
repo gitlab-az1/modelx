@@ -26,6 +26,7 @@
     "@types/crypto-js": "^4.2.2",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.12.10",
+    "@types/pg": "^8.11.10",
     "@typescript-eslint/eslint-plugin": "7.8.0",
     "@typescript-eslint/parser": "7.8.0",
     "babel-plugin-module-resolver": "^5.0.2",
@@ -40,6 +41,8 @@
     "crypto-js": "^4.2.0",
     "cryptx-sdk": "^1.2.3",
     "jpeg-js": "^0.4.4",
-    "next-math": "^1.0.1"
+    "next-math": "^1.0.1",
+    "pg": "^8.13.0",
+    "typesdk": "^2.3.4"
   }
 }

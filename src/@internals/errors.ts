@@ -28,6 +28,9 @@ export const enum ERROR_CODE {
   ERR_INVALID_SIGNATURE = 1022,
   ERR_RESOURCE_LOCKED = 1023,
   ERR_UNWRAP_NONE = 1024,
+  ERR_DATABASE_ERROR = 1025,
+  ERR_MISSING_ENVIRONMENT_KEY = 1026,
+  ERR_STREAM_PROCESSING_FAILURE = 1027,
 }
 
 
@@ -85,6 +88,12 @@ export function stringToErrno(code: keyof typeof ERROR_CODE): number {
       return ERROR_CODE.ERR_RESOURCE_LOCKED;
     case 'ERR_UNWRAP_NONE':
       return ERROR_CODE.ERR_UNWRAP_NONE;
+    case 'ERR_DATABASE_ERROR':
+      return ERROR_CODE.ERR_DATABASE_ERROR;
+    case 'ERR_MISSING_ENVIRONMENT_KEY':
+      return ERROR_CODE.ERR_MISSING_ENVIRONMENT_KEY;
+    case 'ERR_STREAM_PROCESSING_FAILURE':
+      return ERROR_CODE.ERR_STREAM_PROCESSING_FAILURE;
     default:
       return -1;
   }
@@ -144,6 +153,12 @@ export function errorCodeToString(code: number): string {
       return 'ERR_RESOURCE_LOCKED';
     case ERROR_CODE.ERR_UNWRAP_NONE:
       return 'ERR_UNWRAP_NONE';
+    case ERROR_CODE.ERR_DATABASE_ERROR:
+      return 'ERR_DATABASE_ERROR';
+    case ERROR_CODE.ERR_MISSING_ENVIRONMENT_KEY:
+      return 'ERR_MISSING_ENVIRONMENT_KEY';
+    case ERROR_CODE.ERR_STREAM_PROCESSING_FAILURE:
+      return 'ERR_STREAM_PROCESSING_FAILURE';
     default:
       return 'Unknown error';
   }

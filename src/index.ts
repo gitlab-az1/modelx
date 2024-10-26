@@ -8,12 +8,15 @@ export * from './transporters';
 
 export * from './matrix';
 
+export * from './types';
 export * from './queue';
 export * from './cancellation';
 
 export { Stack } from './stack';
 
 export { StopWatch } from './timer';
+
+export { Interval } from './interval';
 
 export { shortId, shortIdSync } from './uid';
 

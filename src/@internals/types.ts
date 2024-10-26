@@ -52,3 +52,5 @@ export type BinaryHolder = Buffer | Uint8Array | ArrayBuffer | SharedArrayBuffer
 
 
 export type Interval = readonly [number, number];
+
+export type PrimitiveDictionary = Dict<string | number | boolean | null>;

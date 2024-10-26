@@ -19,3 +19,5 @@ export function uuid(): string {
 }
 
 export const uuidWithoutDashes = () => uuid().replace(/-/g, '');
+
+export const shortId = () => uuid().split('-').at(-1) as string;
