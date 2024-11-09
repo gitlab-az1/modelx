@@ -2,7 +2,7 @@ import { asyncRetry, Deferred } from 'typesdk/async';
 import { type PoolConfig, type PoolClient, Pool, type QueryResult } from 'pg';
 
 import { AuthLibSQLDatabaseDriver } from './core';
-import { Exception } from 'src/@internals/errors';
+import { Exception } from '../../../@internals/errors';
 
 
 export type PostgresConnectionProps = {

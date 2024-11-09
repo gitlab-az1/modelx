@@ -4,6 +4,23 @@ import type { DT, ObjectKeys } from './types';
 import { Either, left, right } from './either';
 
 
+
+export const ASCI_RED = '\x1b[31m';
+export const ASCI_BOLD = '\x1b[1m';
+export const ASCI_BLUE = '\x1b[34m';
+export const ASCI_CYAN = '\x1b[36m';
+export const ASCI_RESET = '\x1b[0m';
+export const ASCI_GREEN = '\x1b[32m';
+export const ASCI_YELLOW = '\x1b[33m';
+export const ASCI_MAGENTA = '\x1b[35m';
+export const ASCI_BRIGHT_RED = '\x1b[91m';
+export const ASCI_BRIGHT_BLUE = '\x1b[94m';
+export const ASCI_BRIGHT_CYAN = '\x1b[96m';
+export const ASCI_BRIGHT_GREEN = '\x1b[92m';
+export const ASCI_BRIGHT_YELLOW = '\x1b[93m';
+export const ASCI_UNDERLINE = '\x1b[4m';
+
+
 export function assertString(value: unknown, msg?: string): asserts value is string {
   if(!value || typeof value !== 'string') {
     throw setLastError(new Exception(msg || `Cannot use 'typeof ${typeof value}' as 'typeof string'`, 'ERR_INVALID_TYPE', {

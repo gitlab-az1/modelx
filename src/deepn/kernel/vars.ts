@@ -1,5 +1,7 @@
 import { Exception } from '../../@internals/errors';
-import { isPlainObject } from '../../@internals/util';
+import type { LooseAutocomplete } from '../../types';
+import { type Option, optionalDefined } from '../../option';
+import { assertString, isPlainObject } from '../../@internals/util';
 
 
 export const enum VariableKind {
@@ -58,11 +60,33 @@ export interface ArrayVariable<T> extends Variable<T[]> {
 }
 
 
+export interface PresetVariables {
+  readonly PI: DecimalVariable;
+  readonly TRUE: IntegerVariable;
+  readonly FALSE: IntegerVariable;
+}
+
+export type PresetVariablesDict = {
+  [K in keyof PresetVariables]: PresetVariables[K] extends Variable<infer InferredVariableType> ? InferredVariableType : never;
+}
+
+const __$__preset: PresetVariablesDict = {
+  PI: Math.PI,
+  TRUE: 1,
+  FALSE: 0,
+};
+
 
 const $setMap = Symbol('$::VARIABLES_SET::VARS_MAP');
 
 class VariablesSet {
   readonly [$setMap]: Map<string, Variable<any>> = new Map();
+
+  public constructor() {
+    for(const [key, value] of Object.entries(__$__preset)) {
+      this.declare(key, 'const', value);
+    }
+  }
 
   public declare<T>(v: Variable<T>): VarHandler<T>;
   public declare<T>(name: string, kind: 'var' | 'const', value: T | null | undefined, type?: VariableType): VarHandler<T>;
@@ -82,7 +106,7 @@ class VariablesSet {
         throw new Exception(`Cannot redeclare variable '${variableOrName}'`, 'ERR_KERNEL_VAR_ALREADY_DECLARED');
       }
 
-      if(!value && value !== null && !type) {
+      if(typeof value === 'undefined' && !type) {
         throw new Exception(`Failed to determinate variable type for '${variableOrName}'`, 'ERR_UNKNOWN_VAR_TYPE');
       }
 
@@ -100,7 +124,7 @@ class VariablesSet {
 
       obj = this[$setMap].get(variableOrName)!;
     } else {
-      assertVariableStruct(variableOrName);
+      assertVariableObject(variableOrName);
 
       if(this[$setMap].has(variableOrName.name)) {
         throw new Exception(`Cannot redeclare variable '${variableOrName.name}'`, 'ERR_KERNEL_VAR_ALREADY_DECLARED');
@@ -113,7 +137,8 @@ class VariablesSet {
     return new VarHandler({ ...obj });
   }
 
-  public describe<T>(name: string): VarHandler<T> {
+  public describe<T, K extends keyof PresetVariables>(name: LooseAutocomplete<K>): VarHandler<T> {
+    assertString(name);
     const v = this[$setMap].get(name);
 
     if(!v) {
@@ -123,7 +148,8 @@ class VariablesSet {
     return new VarHandler({ ...v });
   }
 
-  public assign<T>(name: string, value: T | null | undefined): void {
+  public assign<T, K extends keyof PresetVariables>(name: LooseAutocomplete<K>, value: T | null | undefined): void {
+    assertString(name);
     const v = this[$setMap].get(name);
 
     if(!v) {
@@ -137,7 +163,8 @@ class VariablesSet {
     Object.assign(v, { value });
   }
 
-  public get<T>(name: string): T | null | undefined {
+  public get<T, K extends keyof PresetVariables>(name: LooseAutocomplete<K>): T | null | undefined {
+    assertString(name);
     const v = this[$setMap].get(name);
 
     if(!v) {
@@ -147,7 +174,8 @@ class VariablesSet {
     return v.value;
   }
 
-  public delete(name: string): boolean {
+  public delete<K extends keyof PresetVariables>(name: LooseAutocomplete<K>): boolean {
+    assertString(name);
     return this[$setMap].delete(name);
   }
 
@@ -182,7 +210,7 @@ class VarHandler<T> {
   public readonly [$vHandlerObject]: Variable<T>;
 
   public constructor(v: Variable<T>) {
-    assertVariableStruct(v);
+    assertVariableObject(v);
     this[$vHandlerObject] = v;
   }
 
@@ -202,7 +230,7 @@ class VarHandler<T> {
 }
 
 
-function assertVariableStruct<T>(arg: unknown): asserts arg is Variable<T> {
+function assertVariableObject<T>(arg: unknown): asserts arg is Variable<T> {
   if(!arg || typeof arg !== 'object' || Array.isArray(arg)) {
     throw new Exception(`Cannot assert 'typeof ${typeof arg}' as 'typeof Variable<unknown>'`, 'ERR_ASSERTATION_FAILED');
   }
@@ -239,11 +267,11 @@ export function vardump<T>(v: VarHandler<T>): string {
   return `(${vartype(v)}) ${v[$vHandlerObject].value}`;
 }
 
-export function getvar<T>(name: string): VarHandler<T> | null {
+export function getvar<T, K extends keyof PresetVariables>(name: LooseAutocomplete<K>): Option<VarHandler<T>> {
+  assertString(name);
   const v = vars[$setMap].get(name);
 
-  if(!v) return null;
-  return new VarHandler({ ...v });
+  return optionalDefined(v ? new VarHandler({ ...v }) : null);
 }
 
 export function vartype<T>(v: VarHandler<T>): string {

@@ -1,4 +1,4 @@
-import { Exception } from 'src/@internals/errors';
+import { Exception } from '../../@internals/errors';
 import { AuthLibNonSQLDatabaseDriver, AuthLibSQLDatabaseDriver } from './drivers';
 
 
