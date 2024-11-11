@@ -23,12 +23,17 @@ export interface Logger {
 
 
 export type LoggerOptions = {
+  namespace?: string;
   transporters?: readonly MessageStream[];
   level?: LogLevel | Lowercase<keyof typeof LogLevel>;
 }
 
 export function createLogger(options?: LoggerOptions): Logger {
   const t = [...(options?.transporters || [])];
+
+  for(let i = 0; i < t.length; i++) {
+    t[i].setNamespace(options?.namespace || null);
+  }
 
   class l {
     public get level(): number {

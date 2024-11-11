@@ -8,9 +8,15 @@ export * from './transporters';
 
 export * from './matrix';
 
+export * from './object';
+
 export * from './types';
 export * from './queue';
 export * from './cancellation';
+
+export * from './@internals/id';
+export * from './@internals/json';
+export * from './@internals/buffer';
 
 export { Stack } from './stack';
 
@@ -39,3 +45,4 @@ export {
   isSome,
   option,
 } from './option';
+

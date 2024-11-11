@@ -3,6 +3,7 @@ import { colorizeLevel, formatStringTemplate, LogLevel, Message, MessageStream, 
 
 import {
   ASCI_GREEN,
+  ASCI_MAGENTA,
   ASCI_RESET,
 } from '../../@internals/util';
 
@@ -13,6 +14,10 @@ export class Console extends MessageStream {
 
     if(!this._omitDate) {
       textMessage = `${ASCI_GREEN}${new Date().toISOString()}${ASCI_RESET}`;
+    }
+
+    if(this.getNamespace()) {
+      textMessage += ` ${ASCI_MAGENTA}${this.getNamespace()}${ASCI_RESET}`;
     }
 
     textMessage += ` ${colorizeLevel(msg.level)}[${stringifyLevel(msg.level)}]${ASCI_RESET} `;

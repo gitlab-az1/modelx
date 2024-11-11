@@ -36,6 +36,7 @@ export type MessageStreamOptions = {
 
 export abstract class MessageStream extends EventEmitter {
   private _eol: string;
+  private _ns: string | null;
   protected _omitDate: boolean;
   protected _forceConsole: boolean;
   protected readonly _level: LogLevel;
@@ -70,6 +71,14 @@ export abstract class MessageStream extends EventEmitter {
 
   public get stringifiedLevel(): string {
     return stringifyLevel(this._level);
+  }
+
+  public setNamespace(namespace: string | null | undefined): void {
+    this._ns = namespace || null;
+  }
+
+  public getNamespace(): string | null {
+    return this._ns;
   }
 
   public on(event: 'message', listener: (__e: Message) => void): void;
