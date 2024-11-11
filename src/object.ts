@@ -42,6 +42,8 @@ export function merge<T extends readonly object[]>(...sources: T[]): MergeArrayO
  */
 type StructuredEnum<TMembers extends string | number> = { readonly [key in TMembers]: key };
 
+export type EnumMembers<T> = T extends StructuredEnum<infer InferredMembers> ? InferredMembers : never;
+
 
 /**
  * Creates a structured enum where each key's value is the same as its key, providing a type-safe enum-like structure.
