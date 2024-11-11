@@ -40,7 +40,7 @@ export function merge<T extends readonly object[]>(...sources: T[]): MergeArrayO
  * 
  * @typeParam TMembers - The types of the enum members, which can be either `string` or `number`.
  */
-type StructuredEnum<TMembers extends string | number> = { readonly [key in TMembers]: key };
+export type StructuredEnum<TMembers extends string | number> = { readonly [key in TMembers]: key };
 
 export type EnumMembers<T> = T extends StructuredEnum<infer InferredMembers> ? InferredMembers : never;
 
