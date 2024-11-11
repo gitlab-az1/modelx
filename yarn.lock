@@ -1517,7 +1517,7 @@
   dependencies:
     tslib "^2.4.0"
 
-"@ts-overflow/async@^1.0.0":
+"@ts-overflow/async@^1.0.2":
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/@ts-overflow/async/-/async-1.0.2.tgz#06ed3d497511cc7b7568ba293c92414c2670a856"
   integrity sha512-e+delZ2IfkOwq+kR4wdE7jAl4ZtfqphUD/ixGJHshT5bosNVVgrTZNbR0nIOoCqvgO7VFSvFvJQBx3rdFBU5+Q==

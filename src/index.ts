@@ -25,6 +25,7 @@ export { StopWatch } from './timer';
 export { Interval } from './interval';
 
 export { shortId, shortIdSync } from './uid';
+export { isThenable } from './@internals/util';
 
 export { MutablePair, Pair } from './pair';
 

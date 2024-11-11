@@ -1,3 +1,8 @@
+import { EventLoop } from '@ts-overflow/async/event-loop';
+
+import { MinHeap } from './heap';
+import { uuid } from './@internals/id';
+import { isThenable } from './@internals/util';
 import { Exception } from './@internals/errors';
 
 
@@ -531,5 +536,202 @@ export class MiniHeapPriorityQueue<T> {
     const temp = this[$items][i];
     this[$items][i] = this[$items][j];
     this[$items][j] = temp;
+  }
+}
+
+
+export type QueueContextArgument<C, T> = {
+  readonly payload: T;
+  readonly context?: C;
+  readonly startedAt: number;
+  readonly concurrency: number;
+  readonly jobId: string;
+  readonly priority: number;
+  readonly delay?: number;
+};
+
+export type QueueWorker<C = any, T = any, R = unknown> = (context: QueueContextArgument<C, T>) => R | Promise<R>;
+
+export type InMemoryQueueOptions<C, T> = {
+  context?: C;
+  concurrency?: number;
+  processor?: QueueWorker<C, T>;
+};
+
+export type QueuePushOptions = {
+  jobId?: string;
+  delay?: number;
+  priority?: number;
+}
+
+type IMQueueState = {
+  paused: boolean;
+  autoRun: boolean;
+  concurrency: number;
+  runningJobs: number;
+  silent: boolean;
+  errorCallback?: (err: Exception) => void;
+}
+
+const DEFAULT_INIT_STATE: IMQueueState = {
+  silent: true,
+  paused: false,
+  autoRun: false,
+  concurrency: 1,
+  runningJobs: 0,
+};
+
+export class InMemoryQueue<TJob = any, TContext = any> {
+  readonly #context?: TContext;
+  readonly #state: IMQueueState;
+  #worker: QueueWorker<TContext, TJob>;
+  readonly #heap: MinHeap<Pick<QueueContextArgument<TContext, TJob>, 'jobId' | 'payload' | 'priority' | 'delay'>>;
+
+  public constructor(options?: InMemoryQueueOptions<TContext, TJob>) {
+    if(typeof options?.concurrency === 'number' && !(options.concurrency >= 1)) {
+      throw new Exception('Queue concurrency value must be greater than or equals 1', 'ERR_INVALID_ARGUMENT');
+    }
+
+    this.#state = Object.assign({}, DEFAULT_INIT_STATE, {
+      concurrency: options?.concurrency || DEFAULT_INIT_STATE.concurrency,
+      autoRun: typeof options?.processor === 'function',
+    } as Partial<IMQueueState>);
+
+    this.#context = options?.context;
+    this.#heap = new MinHeap((a, b) => a.priority - b.priority);
+
+    if(this.#state.autoRun && typeof options?.processor === 'function') {
+      this.#worker = options.processor;
+      this.#processQueue();
+    }
+  }
+
+  public get idle(): boolean {
+    return this.#state.runningJobs === 0 && this.#heap.size === 0;
+  }
+
+  public get length(): number {
+    return this.#heap.size;
+  }
+
+  public get concurrency(): number {
+    return this.#state.concurrency;
+  }
+
+  public add(payload: TJob, options?: QueuePushOptions): void {
+    if(typeof options?.delay === 'number' && !(options.delay > 1)) {
+      throw new Exception('Job delay in queue must be greater than or equals 1', 'ERR_INVALID_ARGUMENT');
+    }
+
+    this.#heap.insert({
+      payload,
+      delay: options?.delay,
+      priority: options?.priority || 0,
+      jobId: options?.jobId || uuid(),
+    });
+
+    this.#processQueue();
+  }
+
+  async #processQueue(): Promise<void> {
+    if(typeof this.#worker !== 'function') return;
+    if(this.#state.paused) return;
+    if(this.#state.runningJobs === this.#state.concurrency || this.#heap.size === 0) return;
+
+    let isPromise = false;
+
+    try {
+      while(!this.#state.paused && this.#state.runningJobs < this.#state.concurrency && this.#heap.size > 0) {
+        const nextJob = this.#heap.extractMin();
+        if(!nextJob) break;
+
+        this.#state.runningJobs++;
+        
+        if(typeof nextJob.delay === 'number') {
+          setTimeout(() => {
+            const executor = this.#worker(this.#prepareJob(nextJob));
+
+            if(isThenable(executor)) {
+              isPromise = true;
+
+              executor.catch(err => {
+                if(!(err instanceof Exception)) {
+                  err = new Exception(String(err.message || err), 'ERR_UNKNOWN_ERROR');
+                }
+      
+                this.#state.errorCallback?.(err);
+              }).finally(() => {
+                this.#state.runningJobs--;
+                this.#processQueue();
+              });
+            }
+          }, nextJob.delay);
+        } else {
+          EventLoop.schedule(() => {
+            const executor = this.#worker(this.#prepareJob(nextJob));
+
+            if(isThenable(executor)) {
+              isPromise = true;
+
+              executor.catch(err => {
+                if(!(err instanceof Exception)) {
+                  err = new Exception(String(err.message || err), 'ERR_UNKNOWN_ERROR');
+                }
+      
+                this.#state.errorCallback?.(err);
+              }).finally(() => {
+                this.#state.runningJobs--;
+                this.#processQueue();
+              });
+            }
+          });
+        }
+      }
+    } catch (err: any) {
+      let e = err;
+
+      if(!(err instanceof Exception)) {
+        e = new Exception(String(err.message || err), 'ERR_UNKNOWN_ERROR');
+      }
+
+      this.#state.errorCallback?.(e);
+      if(this.#state.silent) return;
+
+      // throw e;
+    } finally {
+      if(!isPromise) {
+        this.#state.runningJobs--;
+        this.#processQueue();
+      }
+    }
+  }
+
+  #prepareJob(job: Pick<QueueContextArgument<TContext, TJob>, 'jobId' | 'payload' | 'priority' | 'delay'>): QueueContextArgument<TContext, TJob> {
+    const obj = {
+      ...job,
+      concurrency: this.#state.concurrency,
+      startedAt: Date.now(),
+      context: this.#context,
+    } as QueueContextArgument<TContext, TJob>;
+
+    return Object.freeze(obj);
+  }
+
+  public process(worker: QueueWorker<TContext, TJob>): void {
+    if(this.#state.autoRun) return;
+
+    this.#worker = worker;
+    this.#processQueue();
+  }
+
+  public pause(): void {
+    this.#state.paused = true;
+  }
+
+  public resume(): void {
+    if(!this.#state.paused) return;
+
+    this.#state.paused = false;
+    this.#processQueue();
   }
 }
