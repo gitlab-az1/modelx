@@ -2,6 +2,7 @@
 
 import math from 'next-math';
 
+import { createEnum } from '../object';
 import type { PrimitiveDataType } from '../types';
 import { IDisposable } from '../@internals/disposable';
 import { isPlainObject, isThenable } from '../@internals/util';
@@ -17,7 +18,6 @@ import {
   toErrorCode as _toErrorCode,
   StackTraceFrame,
 } from './exceptions';
-import { createEnum } from 'src/object';
 
 
 export namespace IOStream {
@@ -58,7 +58,9 @@ export namespace IOStream {
       return this.#byteLength;
     }
 
-    public read(): Buffer | null {
+    public read(length?: number, offset?: number): Buffer | null;
+    public read(buffer: Buffer, length?: number, offset?: number): void;
+    public read(bufferOrlength?: Buffer | number, length?: number, offset?: number): Buffer | null | void {
       if(this.#state.disposed || this.#state.ended) return null;
 
       if(this.#buffer.length > 0) {
@@ -66,7 +68,11 @@ export namespace IOStream {
 
         if(chunk) {
           this.#byteLength -= chunk.byteLength;
-          return chunk;
+          if(!Buffer.isBuffer(bufferOrlength)) return chunk.subarray(length || 0, bufferOrlength);
+
+          for(let i = 0; i < (length || chunk.length); i++) {
+            bufferOrlength[i] = chunk[(offset || 0) + i];
+          }
         }
       }
 
@@ -75,11 +81,15 @@ export namespace IOStream {
 
         if(chunk) {
           this.#byteLength += chunk.byteLength;
-          return chunk;
+          if(!Buffer.isBuffer(bufferOrlength)) return chunk.subarray(length || 0, bufferOrlength);
+
+          for(let i = 0; i < (length || chunk.length); i++) {
+            bufferOrlength[i] = chunk[(offset || 0) + i];
+          }
         }
       }
 
-      return null;
+      return Buffer.isBuffer(bufferOrlength) ? void 0 : null;
     }
 
     public end(): Buffer {
@@ -176,6 +186,9 @@ export namespace IOStream {
 
     pause(): StandardIOStream;
     resume(): StandardIOStream;
+
+    read?(length?: number, offset?: number): Buffer | null;
+    read?(buffer: Buffer, length?: number, offset?: number): void;
 
     write?(payload: string | readonly Char[] | Uint8Array | Buffer): boolean;
     writeln?(payload: string | readonly Char[] | Uint8Array | Buffer): boolean;
@@ -540,7 +553,7 @@ export namespace IOStream {
   }
 
   export const stdout = Console.build();
-  export const stdin = new (class extends ReadableStream {
+  export const stdin = new (class __$__stdin extends ReadableStream {
     readonly #scanner: Scanner;
 
     public constructor() {
