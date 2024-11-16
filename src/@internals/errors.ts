@@ -36,6 +36,7 @@ export const enum ERROR_CODE {
   ERR_UNKNOWN_VAR_TYPE = 1030,
   ERR_ASSIGN_CONSTANT = 1031,
   ERR_MAX_LISTENERS_REACHED = 1032,
+  ERR_RESOURCE_FORZEN = 1033,
   ERR_UNKNOWN_ERROR = 2001,
 }
 
@@ -112,6 +113,8 @@ export function stringToErrno(code: keyof typeof ERROR_CODE): number {
       return ERROR_CODE.ERR_MAX_LISTENERS_REACHED;
     case 'ERR_UNKNOWN_ERROR':
       return ERROR_CODE.ERR_UNKNOWN_ERROR;
+    case 'ERR_RESOURCE_FORZEN':
+      return ERROR_CODE.ERR_RESOURCE_FORZEN;
     default:
       return -1;
   }
@@ -189,6 +192,8 @@ export function errorCodeToString(code: number): string {
       return 'ERR_MAX_LISTENERS_REACHED';
     case ERROR_CODE.ERR_UNKNOWN_ERROR:
       return 'ERR_UNKNOWN_ERROR';
+    case ERROR_CODE.ERR_RESOURCE_FORZEN:
+      return 'ERR_RESOURCE_FORZEN';
     default:
       return 'Unknown error';
   }
