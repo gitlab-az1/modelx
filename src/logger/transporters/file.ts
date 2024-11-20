@@ -1,7 +1,7 @@
 import { EventLoop } from '@ts-overflow/async/event-loop';
 
+import { ensureDirSync } from '../../fs';
 import { Exception } from '../../@internals/errors';
-import { ensureDirSync } from '../../@internals/fs';
 import { jsonSafeStringify } from '../../@internals/json';
 import { colorizeLevel, formatStringTemplate, Message, MessageStream, type MessageStreamOptions, removeNonASCIICharacters, stringifyLevel } from './core';
 

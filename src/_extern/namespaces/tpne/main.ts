@@ -3,7 +3,7 @@ import { writeFile } from 'fs/promises';
 
 import { uuid } from '../../../@internals/id';
 import { floor, random } from '../../../math/native';
-import { ensureDir, FILE_PERMISSION } from '../../../@internals/fs';
+import { ensureDir, FILE_PERMISSION } from '../../../fs';
 
 
 const url = 'https://thispersondoesnotexist.com';

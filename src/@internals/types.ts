@@ -3,6 +3,10 @@ export type Dict<T> = {
   [key: string]: T;
 };
 
+export type ReadonlyDict<T> = {
+  readonly [key: string]: T;
+}
+
 export type MaybePromise<T> = T | Promise<T>;
 
 export type MaybeArray<T> = T | T[];

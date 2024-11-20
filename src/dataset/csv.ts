@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 
+import { readBinary } from '../fs';
 import { buffer } from '../@internals/buffer';
-import { readBinary } from '../@internals/fs';
 import { Exception } from '../@internals/errors';
 import type { BinaryHolder, MaybeArray, Interval } from '../@internals/types';
 

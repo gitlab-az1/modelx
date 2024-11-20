@@ -5192,6 +5192,11 @@ typed-array-length@^1.0.6:
     is-typed-array "^1.1.13"
     possible-typed-array-names "^1.0.0"
 
+typed-config-parser@^1.1.0:
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/typed-config-parser/-/typed-config-parser-1.1.0.tgz#0ef3fdbc9c97e08b8f8bee6b554b6543a4635335"
+  integrity sha512-iE73lz4X7A/+xm80um2MW+k6T/1RHPI20WPVHZZ2VMAsShXV5qggwOJBR0OPdUBuVahwReu2dUSEuNKVnTFLkQ==
+
 typescript@^5.4.5:
   version "5.6.3"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.6.3.tgz#5f3449e31c9d94febb17de03cc081dd56d81db5b"

@@ -84,7 +84,7 @@ export async function deriveKey(
     const pwd = typeof password === 'string' ? Buffer.from(password) : buffer(password);
     password = null!;
 
-    let it = 10000;
+    let it = 100000;
 
     if(typeof options?.iterations === 'number') {
       assert(Number.isInteger(options.iterations) && Number.isFinite(options.iterations));

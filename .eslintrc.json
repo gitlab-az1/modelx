@@ -4,7 +4,7 @@
     "node": true,
     "jest": true
   },
-  "root": false,
+  "root": true,
   "extends": [
     "eslint:recommended",
     "plugin:@typescript-eslint/recommended"

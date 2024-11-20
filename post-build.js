@@ -44,6 +44,12 @@ async function recursiveRemoveUnnecessaryFiles(dir) {
       await fs.promises.unlink(path.join(dir, filename));
     }
   }
+
+  const dhlSyntaxPath = path.join(dir, 'ksdb', 'dhl', '_syntax.dhl');
+
+  if(fs.existsSync(dhlSyntaxPath)) {
+    await fs.promises.unlink(dhlSyntaxPath);
+  }
 }
 
 

@@ -2,7 +2,7 @@ import fs from 'fs';
 import * as jpeg from 'jpeg-js';
 
 import { max } from '../../math/native';
-import { readBinary } from '../../@internals/fs';
+import { readBinary } from '../../fs';
 
 
 export type ImageDecodeOptions = {

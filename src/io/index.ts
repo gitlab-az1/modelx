@@ -144,7 +144,7 @@ export namespace IOStream {
       return characters;
     }
 
-    public static toString(characters: Char[]): string {
+    public static toString(characters: readonly Char[]): string {
       if(!characters.every(x => x instanceof Char)) return '';
       return String.fromCharCode(...characters.map(item => item.#charCode));
     }
@@ -821,7 +821,6 @@ export namespace IOStream {
       const output = [] as U[];
 
       for(let i = 0; i < this.#itemsTrack; i++) {
-        console.log({i},this.#buffer[i]);
         output.push(callbackfn.call(thisArg, this.#buffer[i], i, this));
       }
 
@@ -1080,7 +1079,7 @@ export namespace IOStream {
     }
   
     public iterator(): Iterator<T> {
-      return new Iterator(this.#buffer);
+      return new Iterator(this.#buffer.slice(0, this.#itemsTrack));
     }
   
     public freeze(): void {
@@ -1139,10 +1138,47 @@ export namespace IOStream {
     }
   }
 
+  const templateSupportedAliases = ['s', 'd', 'i', 'f', 'n', 'j'];
+
   export class str {
-    public static format(template: string, ...args: any): string {
-      void args;
-      return template;
+    public static format(template: string, ...args: any[]): string {
+      let argIndex = 0; // Keep track of the current argument index
+
+      // Replace format specifiers in the template
+      const result = template.replace(new RegExp(`%[${templateSupportedAliases.join('')}%]`, 'g'), (specifier) => {
+        if(specifier === '%%') return '%'; // Escaped percent
+        if(argIndex >= args.length) return specifier; // If no argument is available, leave it as is
+
+        const arg = args[argIndex++];
+
+        switch(specifier) {
+          case '%s': // String
+            return String(arg);
+          case '%d': // Integer
+            return Number.isInteger(arg) ? arg.toString() : 'NaN';
+          case '%f': // Floating point number
+            return typeof arg === 'number' ? arg.toFixed(6) : 'NaN';
+          case '%i': // Integer (alias for %d)
+            return Number.isInteger(arg) ? arg.toString() : 'NaN';
+          case '%n':
+            return typeof arg === 'number' ? arg : 'NaN';
+          case '%j': // JSON
+            try {
+              return JSON.stringify(arg);
+            } catch {
+              return '[Circular]';
+            }
+          default:
+            return specifier; // Unknown specifier, return as-is
+        }
+      });
+
+      // Append extra arguments not consumed by the placeholders
+      const remainingArgs = args.slice(argIndex).map(arg => {
+        return typeof arg === 'object' ? JSON.stringify(arg) : String(arg);
+      }).join(' ');
+
+      return result + (remainingArgs ? ' ' + remainingArgs : '');
     }
   }
 

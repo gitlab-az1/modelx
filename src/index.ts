@@ -10,6 +10,7 @@ export * from './matrix';
 
 export * from './object';
 
+export * from './fs';
 export * from './types';
 export * from './queue';
 export * from './cancellation';

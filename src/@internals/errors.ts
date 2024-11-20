@@ -37,6 +37,9 @@ export const enum ERROR_CODE {
   ERR_ASSIGN_CONSTANT = 1031,
   ERR_MAX_LISTENERS_REACHED = 1032,
   ERR_RESOURCE_FORZEN = 1033,
+  ERR_UNEXPECTED_TOKEN = 1034,
+  ERR_CRYPTO_SHORT_KEY = 1035,
+  ERR_MAGIC_NUMBER_MISSMATCH = 1036,
   ERR_UNKNOWN_ERROR = 2001,
 }
 
@@ -115,6 +118,12 @@ export function stringToErrno(code: keyof typeof ERROR_CODE): number {
       return ERROR_CODE.ERR_UNKNOWN_ERROR;
     case 'ERR_RESOURCE_FORZEN':
       return ERROR_CODE.ERR_RESOURCE_FORZEN;
+    case 'ERR_UNEXPECTED_TOKEN':
+      return ERROR_CODE.ERR_UNEXPECTED_TOKEN;
+    case 'ERR_CRYPTO_SHORT_KEY':
+      return ERROR_CODE.ERR_CRYPTO_SHORT_KEY;
+    case 'ERR_MAGIC_NUMBER_MISSMATCH':
+      return ERROR_CODE.ERR_MAGIC_NUMBER_MISSMATCH;
     default:
       return -1;
   }
@@ -194,6 +203,12 @@ export function errorCodeToString(code: number): string {
       return 'ERR_UNKNOWN_ERROR';
     case ERROR_CODE.ERR_RESOURCE_FORZEN:
       return 'ERR_RESOURCE_FORZEN';
+    case ERROR_CODE.ERR_UNEXPECTED_TOKEN:
+      return 'ERR_UNEXPECTED_TOKEN';
+    case ERROR_CODE.ERR_CRYPTO_SHORT_KEY:
+      return 'ERR_CRYPTO_SHORT_KEY';
+    case ERROR_CODE.ERR_MAGIC_NUMBER_MISSMATCH:
+      return 'ERR_MAGIC_NUMBER_MISSMATCH';
     default:
       return 'Unknown error';
   }

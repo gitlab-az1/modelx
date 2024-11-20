@@ -1,8 +1,8 @@
-import * as fs from 'node:fs';
+import fs from 'fs';
 
-import { Exception } from './errors';
-// import { fileTypeFromBuffer } from './vendor/file-type/core';
-import { mask as maskBuffer, unmask as unmaskBuffer } from './buffer';
+import { Exception } from './@internals/errors';
+import { mask as maskBuffer, unmask as unmaskBuffer } from './@internals/buffer';
+
 
 
 /**
@@ -125,7 +125,7 @@ export function writeBinarySync(
   fs.writeFileSync(filepath, Buffer.from(out.toString('binary')), { mode: FILE_PERMISSION });
 }
 
-export async function readBinary(filepath: fs.PathLike, mask?: Uint8Array): Promise<Buffer> {
+export async function readBinary(filepath: fs.PathLike, mask?: Uint8Array, length?: number, offset?: number): Promise<Buffer> {
   if(!fs.existsSync(filepath)) {
     throw new Exception(`File not found: ${filepath}`, 'ERR_FILE_NOT_FOUND');
   }
@@ -136,11 +136,11 @@ export async function readBinary(filepath: fs.PathLike, mask?: Uint8Array): Prom
     unmaskBuffer(d, mask as Buffer);
   }
 
-  return d;
+  return d.subarray(offset, length ? length + (offset || 0) : undefined);
 }
 
 
-export function readBinarySync(filepath: fs.PathLike, mask?: Uint8Array): Buffer {
+export function readBinarySync(filepath: fs.PathLike, mask?: Uint8Array, length?: number, offset?: number): Buffer {
   if(!fs.existsSync(filepath)) {
     throw new Exception(`File not found: ${filepath}`, 'ERR_FILE_NOT_FOUND');
   }
@@ -151,5 +151,5 @@ export function readBinarySync(filepath: fs.PathLike, mask?: Uint8Array): Buffer
     unmaskBuffer(d, mask as Buffer);
   }
 
-  return d;
+  return d.subarray(offset, length ? length + (offset || 0) : undefined);
 }

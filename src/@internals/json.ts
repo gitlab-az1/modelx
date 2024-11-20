@@ -8,9 +8,9 @@ import { type Either, left, right } from './either';
  * @param {string} data A JSON string 
  * @returns {*} The parsed data or null if an error occurred
  */
-export function jsonSafeParser<T>(data: string): Either<Error, T> {
+export function jsonSafeParser<T>(data: string, reviver?: (key: string, value: unknown) => unknown): Either<Error, T> {
   try {
-    const d = JSON.parse(data);
+    const d = JSON.parse(data, reviver);
     return right(d);
   } catch (err: any) {
     return left(err instanceof Error ? err : new Error(err.message));

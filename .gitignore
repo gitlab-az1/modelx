@@ -141,3 +141,5 @@ yarn*
 /tmp/**/*
 
 npm-publish.sh
+
+_*.dhl

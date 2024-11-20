@@ -2,6 +2,7 @@ import { Readable } from 'stream';
 import { EventEmitter } from '@ts-overflow/async/events';
 import { IDisposable } from '@ts-overflow/node-framework/disposable';
 
+import * as streams from '../stream';
 import { Exception } from './errors';
 import { assertString } from './util';
 import { listenStream } from '../stream';
@@ -105,30 +106,6 @@ export const unsafeMask = _mask;
  * @param {Buffer} mask The mask to use
  */
 export const unsafeUnmask = _unmask;
-
-
-/**
- * Converts a buffer to an `ArrayBuffer`.
- * 
- * @param {Buffer|Uint8Array} buf The buffer to convert 
- * @returns {ArrayBuffer} The resulting `ArrayBuffer`
- */
-export function toArrayBuffer(buf: Uint8Array): ArrayBuffer {
-  if(buf.length === buf.buffer.byteLength) return buf.buffer;
-  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.length);
-}
-
-
-export function toBuffer(data: any): Buffer {
-  (<any>toBuffer).readOnly = true;
-  if(Buffer.isBuffer(data)) return data;
-
-  if(data instanceof ArrayBuffer) return Buffer.from(data);
-  if(ArrayBuffer.isView(data)) return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
-
-  (<any>toBuffer).readOnly = false;
-  return Buffer.from(data);
-}
 
 
 
@@ -402,3 +379,78 @@ const _buffer = (chunk: any): Buffer => {
 
   throw new Exception('Received non-buffer chunk from stream', 'ERR_STREAM_INVALID_CHUNK');
 };
+
+export function chunkToBuffer(chunk: any): Buffer {
+  return _buffer(chunk);
+}
+
+/**
+ * Converts a buffer to an `ArrayBuffer`.
+ * 
+ * @param {Buffer|Uint8Array} buf The buffer to convert 
+ * @returns {ArrayBuffer} The resulting `ArrayBuffer`
+ */
+export function toArrayBuffer(buf: Uint8Array): ArrayBuffer {
+  if(buf.length === buf.buffer.byteLength) return buf.buffer;
+  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.length);
+}
+
+
+export function toBuffer(data: any): Buffer {
+  (<any>toBuffer).readOnly = true;
+  if(Buffer.isBuffer(data)) return data;
+
+  if(data instanceof ArrayBuffer) return Buffer.from(data);
+  if(ArrayBuffer.isView(data)) return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+
+  (<any>toBuffer).readOnly = false;
+  return Buffer.from(data);
+}
+
+
+export interface BufferReadable extends streams.Readable<Buffer> { }
+export interface BufferReadableStream extends streams.ReadableStream<Buffer> { }
+export interface BufferWriteableStream extends streams.WriteableStream<Buffer> { }
+export interface BufferReadableBufferedStream extends streams.ReadableBufferedStream<Buffer> { }
+
+
+export function streamToBufferReadableStream(stream: streams.ReadableStreamEvents<Uint8Array | string>): streams.ReadableStream<Buffer> {
+  return streams.transform<Uint8Array | string, Buffer>(stream, { data: data => typeof data === 'string' ? Buffer.from(data) : Buffer.isBuffer(data) ? data : Buffer.from(data) }, chunks => Buffer.concat(chunks));
+}
+
+export function readableToBuffer(readable: BufferReadable): Buffer {
+  return streams.consumeReadable<Buffer>(readable, chunks => Buffer.concat(chunks));
+}
+
+export function bufferToReadable(buffer: Buffer): BufferReadable {
+  return streams.toReadable<Buffer>(buffer);
+}
+
+export function streamToBuffer(stream: streams.ReadableStream<Buffer>): Promise<Buffer> {
+  return streams.consumeStream<Buffer>(stream, chunks => Buffer.concat(chunks));
+}
+
+export async function bufferedStreamToBuffer(bufferedStream: streams.ReadableBufferedStream<Buffer>): Promise<Buffer> {
+  if(bufferedStream.ended) return Buffer.concat(bufferedStream.buffer);
+
+  return Buffer.concat([
+
+    // Include already read chunks...
+    ...bufferedStream.buffer,
+
+    // ...and all additional chunks
+    await streamToBuffer(bufferedStream.stream),
+  ]);
+}
+
+export function bufferToStream(buffer: Buffer): streams.ReadableStream<Buffer> {
+  return streams.toStream<Buffer>(buffer, chunks => Buffer.concat(chunks));
+}
+
+export function newWriteableBufferStream(options?: streams.WriteableStreamOptions): streams.WriteableStream<Buffer> {
+  return streams.newWriteableStream<Buffer>(chunks => Buffer.concat(chunks), options);
+}
+
+export function prefixedBufferStream(prefix: Buffer, stream: BufferReadableStream): BufferReadableStream {
+  return streams.prefixedStream(prefix, stream, chunks => Buffer.concat(chunks));
+}

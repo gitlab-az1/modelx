@@ -43,6 +43,7 @@
     "jpeg-js": "^0.4.4",
     "next-math": "^1.0.1",
     "pg": "^8.13.0",
+    "typed-config-parser": "^1.1.0",
     "typesdk": "^2.3.4"
   }
 }
