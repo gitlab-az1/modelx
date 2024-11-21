@@ -9,13 +9,13 @@ import { Exception } from '../@internals/errors';
 import { optionalDefined, unwrap } from '../option';
 import { chunkToBuffer } from '../@internals/buffer';
 import { decryptIfKey, encryptIfKey } from './crypto';
-import { BinaryTransformer, File } from './filesystem';
+import { BufferMaskTransformer, File } from './filesystem';
 import { Either, left, right } from '../@internals/either';
+import { RedBlackTree, upsert, lookup } from '../btree/redBlackTree';
 import { jsonSafeParser, jsonSafeStringify } from '../@internals/json';
-import { RedBlackTree, upsert, lookup } from './btree/redBlackTree';
 
 
-const BUFFER_MASK = Buffer.from('469d18fad7e9', 'hex');
+const BUFFER_MASK = Buffer.from('5435bf19b176', 'hex');
 const MAGIC_HEADER = [0x4B, 0x53, 0x44, 0x42];
 const HEADER_LENGTH = 4096;
 
@@ -64,6 +64,7 @@ export type InferRuntimeValueFromHeader<T extends TableHeader, Generic = any> = 
 
 type Header = {
   totalSize: number;
+  headerLength: number;
   schemaHeader: TableHeader[];
   rowsLength: number[];
 };
@@ -117,46 +118,40 @@ export type TableOpenProps = {
 };
 
 export class Table<T extends object> {
-  static async #parseHeader(header: Buffer, options: TableOpenProps): Promise<Header> {
+  static async #ParseHeader(header: Buffer, magic: Buffer, options: TableOpenProps & { len: number; file: File }): Promise<Header> {
     // This method parse the given Buffer object into a `Header` structure.
     //
     // Header (4096 bytes):
-    // +------------------------+---------------------------+---------------------------------------
-    // | magic number (4 bytes) | total data size (4 bytes) | byte length of `rowsLength` (4 bytes) 
-    // +------------------------+---------------------------+---------------------------------------
-    // -----------------------------------+------------------------+--------------------+
-    //  byte length of `schema` (4 bytes) | the `rowsLength` array | the `schema` array |
-    // -----------------------------------+------------------------+--------------------+
+    // +------------------------+-------------------------+---------------------------
+    // | magic number (4 bytes) | header length (4 bytes) | total data size (4 bytes) 
+    // +------------------------+-------------------------+---------------------------
+    // ---------------------------------------+-----------------------------------+------------------------+--------------------+
+    //  byte length of `rowsLength` (4 bytes) | byte length of `schema` (4 bytes) | the `rowsLength` array | the `schema` array |
+    // ---------------------------------------+-----------------------------------+------------------------+--------------------+
 
-    // eslint-disable-next-line no-extra-boolean-cast
-    if(!!options.encryptionKey) { // Decrypt the header buffer if an key is set
-      const decrypted = await decryptIfKey(header, chunkToBuffer(options.encryptionKey));
-
-      if(!Array.isArray(decrypted)) {
-        throw new Exception(`Failed to execute decryption routine for table '${path.basename(options.filepath)}'`, 'ERR_UNKNOWN_ERROR');
-      }
-
-      header = decrypted[0];
-    }
-
-    // Read the first 4 bytes of header Buffer
-    const magic = header.subarray(0, 4); // Assuming that it is the magic number
-    
-    for(let i = 0; i < MAGIC_HEADER.length; i++) { // Check if the magic number in header matches with `MAGIC_HEADER`
+    for(let i = 0; i < MAGIC_HEADER.length; i++) { 
       if(magic[i] !== MAGIC_HEADER[i]) {
         throw new Exception('Failed to parse database header', 'ERR_MAGIC_NUMBER_MISSMATCH');
       }
     }
 
-    const totalSize = header.readUint32LE(4); // Reads the byte size of all stored data in this table
-    const rowsObjectLength = header.readUint32LE(8); // Reads the length of `rowsLength` array
-    const objectSchemaLength = header.readUint32LE(12); // Reads the length of `schema` array
-
-    // Try to parse `schema` as JSON
-    const parsedSchemaHeader = jsonSafeParser<TableHeader[]>(header.subarray(16 + rowsObjectLength, 16 + rowsObjectLength + objectSchemaLength).toString('utf8'));
-
-    // Try to parse `rowsLength` as JSON
-    const parsedLengthsObject = jsonSafeParser<number[]>(header.subarray(16, 16 + rowsObjectLength).toString('utf8'));
+    // eslint-disable-next-line no-extra-boolean-cast
+    if(!!options.encryptionKey) { // Decrypt the header buffer if a key is set
+      const decrypted = await decryptIfKey(header, chunkToBuffer(options.encryptionKey));
+  
+      if(!Array.isArray(decrypted)) {
+        throw new Exception(`Failed to execute decryption routine for table '${path.basename(options.filepath)}'`, 'ERR_UNKNOWN_ERROR');
+      }
+  
+      header = decrypted[0];
+    }
+  
+    const totalSize = header.readUint32LE(0); 
+    const rowsObjectLength = header.readUint32LE(4); 
+    const objectSchemaLength = header.readUint32LE(8); 
+  
+    const parsedSchemaHeader = jsonSafeParser<TableHeader[]>(header.subarray(12 + rowsObjectLength, 12 + rowsObjectLength + objectSchemaLength).toString('utf8'));
+    const parsedLengthsObject = jsonSafeParser<number[]>(header.subarray(12, 12 + rowsObjectLength).toString('utf8'));
 
     if(parsedLengthsObject.isLeft()) {
       throw parsedLengthsObject.value;
@@ -168,43 +163,43 @@ export class Table<T extends object> {
 
     return {
       totalSize,
+      headerLength: header.byteLength,
       schemaHeader: parsedSchemaHeader.value,
       rowsLength: parsedLengthsObject.value,
     };
   }
 
-  static async #createEmptyFile(options: TableOpenProps): Promise<void> {
-    // Creates and write a new empty file for table if not exists
+  static async #CreateEmptyFile(options: TableOpenProps): Promise<void> {
+    const left = Buffer.alloc(MAGIC_HEADER.length + 4);
+    let header = Buffer.alloc(HEADER_LENGTH - (MAGIC_HEADER.length + 4));
 
-    // Allocates an buffer for header with `HEADER_LENGTH` bytes
-    let header = Buffer.alloc(HEADER_LENGTH);
+    const emptyArray = Buffer.from(unwrap(optionalDefined(jsonSafeStringify([]))), 'utf8');
+    const emptyArrayLength = emptyArray.byteLength;
 
-    // Write the MAGIC_HEADER to the buffer
-    for(let i = 0; i < MAGIC_HEADER.length; i++) {
-      header[i] = MAGIC_HEADER[i];
-    }
+    header.writeUint32LE(0, 0); // total data byte size
+    header.writeUint32LE(emptyArrayLength, 4); // rows length (bytes)
+    header.writeUint32LE(emptyArrayLength, 8); // schema length (bytes)
 
-    const emptyArray = unwrap( optionalDefined( jsonSafeStringify([]) ) );
-    const emptyArrayLength = Buffer.byteLength(emptyArray);
+    // Write empty arrays to the header
+    header.write(emptyArray.toString('utf8'), 12, 'utf8'); // rows array
+    header.write(emptyArray.toString('utf8'), 12 + emptyArrayLength, 'utf8'); // schema array
 
-    // Initialize lengths and other metadata to zero
-    header.writeUint32LE(0, 4); // totalSize
-    header.writeUint32LE(emptyArrayLength, 8); // rowsObjectLength
-    header.writeUint32LE(emptyArrayLength, 12); // objectSchemaLength
+    // Handle encryption if the key is provided
+    if(options.encryptionKey) {
+      const encrypted = await encryptIfKey(header, chunkToBuffer(options.encryptionKey));
 
-    header.write(emptyArray, 16, 'utf8');
-    header.write(emptyArray, 16 + emptyArrayLength, 'utf8');
-
-    // eslint-disable-next-line no-extra-boolean-cast
-    if(!!options.encryptionKey) { // Encrypt header buffer is an key is set
-      const encrytped = await encryptIfKey(header, chunkToBuffer(options.encryptionKey));
-
-      if(!Array.isArray(encrytped)) {
+      if(!Array.isArray(encrypted)) {
         throw new Exception(`Failed to execute encryption routine for table '${path.basename(options.filepath)}'`, 'ERR_UNKNOWN_ERROR');
       }
 
-      header = encrytped[1];
+      header = encrypted[1];
     }
+
+    for(let i = 0; i < MAGIC_HEADER.length; i++) {
+      left[i] = MAGIC_HEADER[i];
+    }
+    
+    left.writeUint32LE(header.byteLength, MAGIC_HEADER.length);
     
     // Request an file descriptor for table's filename in write mode
     const file = await File.open(options.filepath, 'w+', { lock: true });
@@ -213,12 +208,13 @@ export class Table<T extends object> {
       throw file.value;
     }
 
-    file.value.pushTransformer(new BinaryTransformer(BUFFER_MASK)); // Prepare file handler to encode/decode binary files with mask `BUFFER_MASK`
+    file.value.pushTransformer(new BufferMaskTransformer(BUFFER_MASK));
+    // file.value.pushTransformer(new BinaryTransformer(BUFFER_MASK)); -- Removed due to issue (#1) // Prepare file handler to encode/decode binary files with mask `BUFFER_MASK`
     // file.value.pushTransformer(new ZlibTransformer()); -- Skipping compression in this phase
 
     try {
       // Writes the header to the file
-      await file.value.write(header, 0);
+      await file.value.write(Buffer.concat([left, header]), 0);
     } finally {
       // And finally, closes the file descriptor
       await file.value.close();
@@ -239,7 +235,7 @@ export class Table<T extends object> {
       await ensureDir(path.dirname(options.filepath));
 
       if(!fs.existsSync(options.filepath)) { // Creates a new empty file with just the header if not exists
-        await this.#createEmptyFile(options);
+        await this.#CreateEmptyFile(options);
       }
       
       // Request an file descriptor to table's file in read/write mode
@@ -251,16 +247,17 @@ export class Table<T extends object> {
 
       try {
         // file.value.pushTransformer(new ZlibTransformer()); -- Skipping compression in this phase
-        file.value.pushTransformer(new BinaryTransformer(BUFFER_MASK)); // Prepare file handler to encode/decode binary files with `BUFFER_MASK`
+        // file.value.pushTransformer(new BinaryTransformer(BUFFER_MASK)); -- Removed due to issue (#1) // Prepare file handler to encode/decode binary files with `BUFFER_MASK`
+        file.value.pushTransformer(new BufferMaskTransformer(BUFFER_MASK));
 
-        // Allocates an buffer to store the header of table
-        const headerBuffer = Buffer.alloc(HEADER_LENGTH);
+        const leftBuffer = Buffer.alloc(MAGIC_HEADER.length + 4);
+        await file.value.read(leftBuffer, leftBuffer.byteLength, 0);
 
-        // Write the header of table into `headerBuffer`
-        await file.value.read(headerBuffer, HEADER_LENGTH, 0); 
-      
-        // Parse the header buffer into a `Header` object
-        const header = await this.#parseHeader(headerBuffer, options);
+        const headerLength = leftBuffer.readUint32LE(MAGIC_HEADER.length);
+        const headerBuffer = Buffer.alloc(headerLength);
+
+        await file.value.read(headerBuffer, Math.min(headerLength, file.value.byteLength), MAGIC_HEADER.length + 4);
+        const header = await this.#ParseHeader(headerBuffer, leftBuffer.subarray(0, MAGIC_HEADER.length), Object.assign({}, options, { file: file.value, len: headerLength }));
 
         // Resolve the promise with a new instance of `Table` as `Right`
         return right(new Table(file.value, header, options.encryptionKey));
@@ -272,7 +269,10 @@ export class Table<T extends object> {
       let e = error;
 
       if(!(error instanceof Exception)) {
-        e = new Exception(error.message || error || `An unknown error was occured while opening '${path.basename(options.filepath)}'`, 'ERR_UNKNOWN_ERROR');
+        e = new Exception(error.message || error || `An unknown error was occured while opening '${path.basename(options.filepath)}'`, 'ERR_UNKNOWN_ERROR', {
+          _inner: error,
+          _stackTrace: error.stack,
+        });
       }
 
       // Reject the promise with the error with `Left`
@@ -280,7 +280,7 @@ export class Table<T extends object> {
     }
   }
 
-  static #reviveValue<THeader extends TableHeader = TableHeader>(header: THeader, value: any): InferRuntimeValueFromHeader<THeader> {
+  static #ReviveValue<THeader extends TableHeader = TableHeader>(header: THeader, value: any): InferRuntimeValueFromHeader<THeader> {
     switch(header.type) {
       case 'text':
         return String(value) as any;
@@ -338,14 +338,14 @@ export class Table<T extends object> {
     }
   }
 
-  readonly #file: File;
-  readonly #header: Header;
-  #cachedRows: RedBlackTree<[ number, RedBlackTree<[string, unknown]> ]>;
-  #diskFlushQueue: InMemoryQueue<{ rowIndex: number; tree: RedBlackTree<[string, unknown]> }>;
+  readonly #File: File;
+  readonly #Header: Header;
+  #CachedRows: RedBlackTree<[ number, RedBlackTree<[string, unknown]> ]>;
+  #DiskFlushQueue: InMemoryQueue<{ rowIndex: number; tree: RedBlackTree<[string, unknown]> }>;
 
-  #encryptionKey?: Buffer;
+  #EncryptionKey?: Buffer;
 
-  readonly #state: {
+  readonly #State: {
     byteLength: number;
     closed: boolean;
     ioBlocked: boolean;
@@ -360,29 +360,29 @@ export class Table<T extends object> {
       await _file.close();
     });
 
-    this.#file = _file;
-    this.#header = _header;
-    this.#cachedRows = new RedBlackTree();
+    this.#File = _file;
+    this.#Header = _header;
+    this.#CachedRows = new RedBlackTree();
     // eslint-disable-next-line no-extra-boolean-cast
-    this.#encryptionKey = !!_ek ? chunkToBuffer(_ek) : undefined;
-    this.#diskFlushQueue = new InMemoryQueue({ concurrency: 1 });
+    this.#EncryptionKey = !!_ek ? chunkToBuffer(_ek) : undefined;
+    this.#DiskFlushQueue = new InMemoryQueue({ concurrency: 1 });
     
-    this.#state = {
+    this.#State = {
       closed: false,
       ioBlocked: false,
       byteLength: _header.totalSize,
     };
 
-    this.#diskFlushQueue.process(async ({ payload }) => {
-      await this.#writeRow(payload.rowIndex, payload.tree);
+    this.#DiskFlushQueue.process(async ({ payload }) => {
+      await this.#WriteRow(payload.rowIndex, payload.tree);
     });
   }
 
-  #getBalancedTreeFromCache(rowIndex: number): RedBlackTree<[string, unknown]> | null {
+  #GetBalancedTreeFromCache(rowIndex: number): RedBlackTree<[string, unknown]> | null {
     // Check if `rowIndex` already have an Red-Black tree cached in memory
     // and if exists, we don't need to read the file again to fetch this data, we're use the cache instead
 
-    const node = lookup<any>(this.#cachedRows, [rowIndex], (a, b) => {
+    const node = lookup<any>(this.#CachedRows, [rowIndex], (a, b) => {
       if(a[0] > b[0]) return 1;
       if(a[0] < b[0]) return -1;
       return 0;
@@ -391,24 +391,26 @@ export class Table<T extends object> {
     return node ? node.content[1] : null;
   }
 
-  #cacheBalancedTree(rowIndex: number, tree: RedBlackTree<[string, unknown]>): void {
+  #CacheBalancedTree(rowIndex: number, tree: RedBlackTree<[string, unknown]>): void {
     // Sets an Red-Black tree into the cache for `rowIndex`
 
-    upsert(this.#cachedRows, [rowIndex, tree], (a, b) => {
+    upsert(this.#CachedRows, [rowIndex, tree], (a, b) => {
       if(a[0] > b[0]) return 1;
       if(a[0] < b[0]) return -1;
       return 0;
     });
   }
 
-  #buildHeader(theader?: Header): Buffer {
+  async #BuildHeader(theader?: Header): Promise<Buffer> {
     // This method converts and `Header` object into a buffer without encryption
 
-    const header = theader || Object.assign({}, this.#header, { totalSize: this.#state.byteLength });
-    const headerBuffer = Buffer.alloc(HEADER_LENGTH);
+    const header = theader || Object.assign({}, this.#Header, { totalSize: this.#State.byteLength });
+
+    const leftBuffer = Buffer.alloc(MAGIC_HEADER.length + 4);
+    let headerBuffer = Buffer.alloc(HEADER_LENGTH - (MAGIC_HEADER.length + 4));
 
     for(let i = 0; i < MAGIC_HEADER.length; i++) {
-      headerBuffer[i] = MAGIC_HEADER[i];
+      leftBuffer[i] = MAGIC_HEADER[i];
     }
 
     const rowsLengthArray = unwrap( optionalDefined( jsonSafeStringify(header.rowsLength) ) );
@@ -424,51 +426,52 @@ export class Table<T extends object> {
     headerBuffer.write(rowsLengthArray, 16, 'utf8');
     headerBuffer.write(objectSchema, 16 + rowsLength, 'utf8');
 
-    return headerBuffer;
+    // eslint-disable-next-line no-extra-boolean-cast
+    if(!!this.#EncryptionKey) {
+      const encrypted = await encryptIfKey(headerBuffer, this.#EncryptionKey);
+
+      if(!Array.isArray(encrypted)) {
+        throw new Exception(`Failed to execute encryption routine for table '${this.#File.filename}'`, 'ERR_UNKNOWN_ERROR');
+      }
+
+      headerBuffer = encrypted[1];
+    }
+
+    leftBuffer.writeUInt32LE(headerBuffer.byteLength, MAGIC_HEADER.length);
+    return Buffer.concat([leftBuffer, headerBuffer]);
   }
 
-  #getRowOffset(rowIndex: number): number {
+  #GetRowOffset(rowIndex: number): number {
     // Calculate the offset in the file where the row data will be written.
     let offset = HEADER_LENGTH; // Start after the header
 
     for(let i = 0; i < rowIndex; i++) {
-      offset += this.#header.rowsLength[i]; // Add the lengths of previous rows
+      offset += this.#Header.rowsLength[i]; // Add the lengths of previous rows
     }
 
     return offset; // Return the calculated offset
   }
 
-  async #writeRow(rowIndex: number, tree: RedBlackTree<[string, unknown]>): Promise<void> {
-    let header = this.#buildHeader();
-
-    // eslint-disable-next-line no-extra-boolean-cast
-    if(!!this.#encryptionKey) {
-      const encrypted = await encryptIfKey(header, this.#encryptionKey);
-
-      if(!Array.isArray(encrypted)) {
-        throw new Exception(`Failed to execute encryption routine for table '${this.#file.filename}'`, 'ERR_UNKNOWN_ERROR');
-      }
-
-      header = encrypted[1];
-    }
+  async #WriteRow(rowIndex: number, tree: RedBlackTree<[string, unknown]>): Promise<void> {
+    throw new IOStream.Exception.NotImplemented('Table#writeRow()', [rowIndex, tree]);
+    const header = await this.#BuildHeader();
 
     // TODO: implement journaling system to make secure disk operations
 
-    await this.#file.write(header, 0);
+    await this.#File.write(header, 0);
 
     // TODO: write rows in the file
-    throw new IOStream.Exception.NotImplemented('Table#writeRow()', [rowIndex, tree]);
   }
 
   // @ts-expect-error The method Table#readRow() is never called
-  async #readRow(rowIndex: number, waitTimeout: number = 4000): Promise<RedBlackTree<[string, unknown]>> {
-    const cached = this.#getBalancedTreeFromCache(rowIndex);
+  async #ReadRow(rowIndex: number, waitTimeout: number = 4000): Promise<RedBlackTree<[string, unknown]>> {
+    const cached = this.#GetBalancedTreeFromCache(rowIndex);
     if(cached) return cached;
 
-    if(this.#state.ioBlocked) {
+    if(this.#State.ioBlocked) {
       const startTime = Date.now();
       
-      while(this.#state.ioBlocked) {
+      while(this.#State.ioBlocked) {
         if(Date.now() - startTime >= waitTimeout) {
           throw new Exception('Timeout exceded waiting to read a table row', 'ERR_RESOURCE_LOCKED');
         }
@@ -477,20 +480,20 @@ export class Table<T extends object> {
       }
     }
 
-    this.#state.ioBlocked = true;
+    this.#State.ioBlocked = true;
 
     try {
       const balancedTree = new RedBlackTree<[string, unknown]>();
 
-      let rowBuffer = Buffer.alloc(this.#header.rowsLength[rowIndex]);
-      await this.#file.read(rowBuffer, this.#header.rowsLength[rowIndex], this.#getRowOffset(rowIndex) + this.#header.rowsLength[rowIndex]);
+      let rowBuffer = Buffer.alloc(this.#Header.rowsLength[rowIndex]);
+      await this.#File.read(rowBuffer, this.#Header.rowsLength[rowIndex], this.#GetRowOffset(rowIndex) + this.#Header.rowsLength[rowIndex]);
 
       // eslint-disable-next-line no-extra-boolean-cast
-      if(!!this.#encryptionKey) {
-        const decrypted = await decryptIfKey(rowBuffer, this.#encryptionKey);
+      if(!!this.#EncryptionKey) {
+        const decrypted = await decryptIfKey(rowBuffer, this.#EncryptionKey);
 
         if(!Array.isArray(decrypted)) {
-          throw new Exception(`Failed to execute decryption routine for table '${this.#file.filename}'`, 'ERR_UNKNOWN_ERROR');
+          throw new Exception(`Failed to execute decryption routine for table '${this.#File.filename}'`, 'ERR_UNKNOWN_ERROR');
         }
 
         rowBuffer = decrypted[0];
@@ -502,30 +505,30 @@ export class Table<T extends object> {
         throw parsedRow.value;
       }
 
-      if(parsedRow.value.length !== this.#header.schemaHeader.length) {
+      if(parsedRow.value.length !== this.#Header.schemaHeader.length) {
         throw new Exception('The row length not match with header fields', 'ERR_OUT_OF_BOUNDS');
       }
 
       for(let i = 0; i < parsedRow.value.length; i++) {
-        const header = this.#header.schemaHeader[i];
-        upsert(balancedTree, [header.fieldName, Table.#reviveValue(header, parsedRow.value[i])], bTreeComparator);
+        const header = this.#Header.schemaHeader[i];
+        upsert(balancedTree, [header.fieldName, Table.#ReviveValue(header, parsedRow.value[i])], bTreeComparator);
       }
 
-      this.#cacheBalancedTree(rowIndex, balancedTree);
+      this.#CacheBalancedTree(rowIndex, balancedTree);
       return balancedTree;
     } finally {
-      this.#state.ioBlocked = false;
+      this.#State.ioBlocked = false;
     }
   }
 
   public byteLength(): number {
-    if(this.#state.closed) return 0;
-    return this.#state.byteLength;
+    if(this.#State.closed) return 0;
+    return this.#State.byteLength;
   }
 
   public countRows(): number {
-    if(this.#state.closed) return -1;
-    return this.#header.rowsLength.length;
+    if(this.#State.closed) return -1;
+    return this.#Header.rowsLength.length;
   }
 
   public async insert(obj: _SchemaObject<T>): Promise<void> {
@@ -533,20 +536,20 @@ export class Table<T extends object> {
   }
 
   public async close(): Promise<void> {
-    if(this.#state.closed) return;
+    if(this.#State.closed) return;
 
-    this.#diskFlushQueue.pause();
-    this.#diskFlushQueue.dispose();
+    this.#DiskFlushQueue.pause();
+    this.#DiskFlushQueue.dispose();
 
-    await this.#file.close();
-    this.#cachedRows.root = null!;
+    await this.#File.close();
+    this.#CachedRows.root = null!;
     
-    this.#header.rowsLength = [];
-    this.#header.schemaHeader = [];
+    this.#Header.rowsLength = [];
+    this.#Header.schemaHeader = [];
 
-    this.#state.byteLength = 0;
-    this.#state.ioBlocked = true;
-    this.#state.closed = true;
+    this.#State.byteLength = 0;
+    this.#State.ioBlocked = true;
+    this.#State.closed = true;
   }
 }
 

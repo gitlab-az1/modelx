@@ -67,6 +67,53 @@ export class BinaryTransformer implements SingleWayFileTransformer {
   }
 }
 
+export class BufferMaskTransformer implements SingleWayFileTransformer {
+  readonly #bufferMask?: Buffer | Uint8Array;
+
+  public constructor(mask?: Buffer | Uint8Array) {
+    if(!mask || (!Buffer.isBuffer(mask) && !(mask instanceof Uint8Array))) {
+      throw new Exception('The mask for binary files should be a buffer or Uint8Array', 'ERR_INVALID_ARGUMENT');
+    }
+
+    this.#bufferMask = mask;
+
+    if(!process.env.NO_BUFFER_UTILS) {
+      process.env.NO_BUFFER_UTILS = '1';
+    }
+  }
+
+  public get __kind(): 'single-way' {
+    return 'single-way' as const;
+  }
+
+  public encode(input: Buffer | Uint8Array): Buffer {
+    const d = Buffer.isBuffer(input) ? input : Buffer.from(input);
+    let out: Buffer;
+
+    // Mask the buffer directly if a mask is provided
+    if (this.#bufferMask) {
+      out = Buffer.alloc(d.length);
+      maskBuffer(d, this.#bufferMask as Buffer, out, 0, d.length);
+    } else {
+      out = d; // If no mask is provided, just return the input buffer
+    }
+
+    return out;
+  }
+
+  public decode(input: Buffer): Buffer {
+    const d = Buffer.from(input); // Work directly with the buffer
+
+    // Unmask the buffer if a mask is provided
+    if (this.#bufferMask) {
+      unmaskBuffer(d, this.#bufferMask as Buffer);
+    }
+
+    return d;
+  }
+}
+
+
 export class ZlibTransformer implements DuplexFileTransformer {
   public get __kind(): 'duplex' {
     return 'duplex' as const;
@@ -266,6 +313,20 @@ export class File {
     return index >= 0;
   }
 
+  public async transformPassive(buffer: Buffer): Promise<Buffer> {
+    await Promise.all(
+      this.#transformers.map(async transformer => {
+        if(transformer.__kind === 'single-way') {
+          buffer = await transformer.encode(buffer);
+        } else if(transformer.__kind === 'duplex') {
+          buffer = await transformer.transform(buffer);
+        }
+      }) // eslint-disable-line comma-dangle
+    );
+
+    return buffer;
+  }
+
   public async append(data: Buffer): Promise<number> {
     let dataToWrite = data;
 
@@ -293,8 +354,8 @@ export class File {
     return this.#handler.appendFile(data);
   }
 
-  public read(buffer: Buffer, length?: number, offset?: number): Promise<void>;
   public read(length?: number, offset?: number): Promise<Buffer>;
+  public read(buffer: Buffer, length?: number, offset?: number): Promise<void>;
   public async read(
     bufferOrLength?: Buffer | number,
     lengthOrOffset?: number,

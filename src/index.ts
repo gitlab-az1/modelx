@@ -4,6 +4,8 @@ export * as crypto from './crypto';
 export * from './math';
 export * as math from './math';
 
+export * from './btree';
+
 export * from './transporters';
 
 export * from './matrix';

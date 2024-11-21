@@ -5,7 +5,7 @@ const BLACK = 1;
 class Node<T> {
   public constructor(
     public content: T,
-    public color: number = RED,
+    public color: typeof RED | typeof BLACK = RED,
     public left: Node<T> | null = null,
     public right: Node<T> | null = null,
     public parent: Node<T> | null = null // eslint-disable-line comma-dangle
