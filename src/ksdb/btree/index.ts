@@ -1,2 +1,2 @@
-export * from './bPlusTree';
-export * from './redBlackTree';
+export * as bPlusTree from './bPlusTree';
+export * as redBlackTree from './redBlackTree';

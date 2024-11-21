@@ -4,6 +4,7 @@ import { MinHeap } from './heap';
 import { uuid } from './@internals/id';
 import { isThenable } from './@internals/util';
 import { Exception } from './@internals/errors';
+import { IDisposable } from './@internals/disposable';
 
 
 const $items = Symbol('QUEUE::INTERNAL_DESCRIPTOR.Items');
@@ -565,6 +566,7 @@ export type QueuePushOptions = {
 }
 
 type IMQueueState = {
+  disposed: boolean;
   paused: boolean;
   autoRun: boolean;
   concurrency: number;
@@ -574,6 +576,7 @@ type IMQueueState = {
 }
 
 const DEFAULT_INIT_STATE: IMQueueState = {
+  disposed: false,
   silent: true,
   paused: false,
   autoRun: false,
@@ -581,8 +584,8 @@ const DEFAULT_INIT_STATE: IMQueueState = {
   runningJobs: 0,
 };
 
-export class InMemoryQueue<TJob = any, TContext = any> {
-  readonly #context?: TContext;
+export class InMemoryQueue<TJob = any, TContext = any> implements IDisposable {
+  #context?: TContext;
   readonly #state: IMQueueState;
   #worker: QueueWorker<TContext, TJob>;
   readonly #heap: MinHeap<Pick<QueueContextArgument<TContext, TJob>, 'jobId' | 'payload' | 'priority' | 'delay'>>;
@@ -607,7 +610,7 @@ export class InMemoryQueue<TJob = any, TContext = any> {
   }
 
   public get idle(): boolean {
-    return this.#state.runningJobs === 0 && this.#heap.size === 0;
+    return this.#state.runningJobs === 0 && this.#heap.size === 0 && !this.#state.disposed;
   }
 
   public get length(): number {
@@ -619,6 +622,10 @@ export class InMemoryQueue<TJob = any, TContext = any> {
   }
 
   public add(payload: TJob, options?: QueuePushOptions): void {
+    if(this.#state.disposed) {
+      throw new Exception('Cannot add more items into a disposed queue', 'ERR_RESOURCE_DISPOSED');
+    }
+
     if(typeof options?.delay === 'number' && !(options.delay > 1)) {
       throw new Exception('Job delay in queue must be greater than or equals 1', 'ERR_INVALID_ARGUMENT');
     }
@@ -634,7 +641,7 @@ export class InMemoryQueue<TJob = any, TContext = any> {
   }
 
   async #processQueue(): Promise<void> {
-    if(typeof this.#worker !== 'function') return;
+    if(typeof this.#worker !== 'function' || this.#state.disposed) return;
     if(this.#state.paused) return;
     if(this.#state.runningJobs === this.#state.concurrency || this.#heap.size === 0) return;
 
@@ -718,20 +725,32 @@ export class InMemoryQueue<TJob = any, TContext = any> {
   }
 
   public process(worker: QueueWorker<TContext, TJob>): void {
-    if(this.#state.autoRun) return;
+    if(this.#state.autoRun || this.#state.disposed) return;
 
     this.#worker = worker;
     this.#processQueue();
   }
 
   public pause(): void {
+    if(this.#state.disposed) return;
     this.#state.paused = true;
   }
 
   public resume(): void {
-    if(!this.#state.paused) return;
+    if(this.#state.disposed || !this.#state.paused) return;
 
     this.#state.paused = false;
     this.#processQueue();
+  }
+
+  public dispose(): void {
+    if(this.#state.disposed) return;
+
+    this.#state.paused = true;
+    this.#context = null!;
+    this.#worker = null!;
+    this.#heap.clear();
+
+    this.#state.disposed = true;
   }
 }

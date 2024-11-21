@@ -45,12 +45,20 @@ export const defaultCompare: Comparator<string | number> = Object.freeze(functio
 export function leftRotate<T>(tree: RedBlackTree<T>, x: Node<T>): void {
   const y = x.right!;
   x.right = y.left;
-  if (y.left !== tree.TNULL) y.left!.parent = x;
+
+  if(y.left !== tree.TNULL) {
+    y.left!.parent = x;
+  }
+
   y.parent = x.parent;
 
-  if (x.parent === null) tree.root = y;
-  else if (x === x.parent.left) x.parent.left = y;
-  else x.parent.right = y;
+  if(x.parent === null) {
+    tree.root = y;
+  } else if(x === x.parent.left) {
+    x.parent.left = y;
+  } else {
+    x.parent.right = y;
+  }
 
   y.left = x;
   x.parent = y;

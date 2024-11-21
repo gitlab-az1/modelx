@@ -17,6 +17,7 @@ import {
   stringifyErrorCode as _stringifyErrorCode,
   toErrorCode as _toErrorCode,
   StackTraceFrame,
+  NotImplementedException,
 } from './exceptions';
 
 
@@ -1256,6 +1257,7 @@ export namespace IOStream {
     }
 
     export class Throwable extends ThrowableException { }
+    export class NotImplemented extends NotImplementedException { }
     export class InvalidArgument extends InvalidArgumentException { }
 
     export interface AbstractErrorObject extends ExceptionObject { }

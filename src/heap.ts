@@ -11,6 +11,11 @@ export class MinHeap<T> {
     return this.#heap.length;
   }
 
+  public clear(): void {
+    this.#heap = null!;
+    this.#heap = [];
+  }
+
   public insert(value: T): void {
     this.#heap.push(value);
     this.#bubbleUp(this.#heap.length - 1);

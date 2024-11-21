@@ -92,6 +92,7 @@ export const enum ERROR_CODE {
   NO_ERROR = 0,
   ERR_UNKNOWN_ERROR = 1000,
   ERR_INVALID_ARGUMENT = 1001,
+  ERR_NOT_IMPLEMENTED = 1002,
 }
 
 
@@ -103,6 +104,8 @@ export function toErrorCode(key: keyof typeof ERROR_CODE): number {
       return ERROR_CODE.ERR_UNKNOWN_ERROR;
     case 'ERR_INVALID_ARGUMENT':
       return ERROR_CODE.ERR_INVALID_ARGUMENT;
+    case 'ERR_NOT_IMPLEMENTED':
+      return ERROR_CODE.ERR_NOT_IMPLEMENTED;
     default:
       return -1;
   }
@@ -116,6 +119,8 @@ export function stringifyErrorCode(code: number): string {
       return 'ERR_UNKNOWN_ERROR';
     case ERROR_CODE.ERR_INVALID_ARGUMENT:
       return 'ERR_INVALID_ARGUMENT';
+    case ERROR_CODE.ERR_NOT_IMPLEMENTED:
+      return 'ERR_NOT_IMPLEMENTED';
     default:
       throw new Error('Unreachable code');
   }
@@ -128,7 +133,9 @@ export function describeError(code: number | keyof typeof ERROR_CODE): string {
     case ERROR_CODE.ERR_UNKNOWN_ERROR:
       return 'An unknown error occurred and the application did not handle it';
     case ERROR_CODE.ERR_INVALID_ARGUMENT:
-      return 'An invalid argument was provided in somewhere of this code';
+      return 'An invalid argument was provided in somewhere of code';
+    case ERROR_CODE.ERR_NOT_IMPLEMENTED:
+      return 'An non-implemented method was called in somewhere of code';
     default:
       throw new Error('Unreachable code');
   }
@@ -168,7 +175,7 @@ export type ErrorOptions = {
 export class ThrowableException extends Error {
   public readonly name: string;
   public readonly message: string;
-  public readonly code: ERROR_CODE;
+  public readonly code: number;
   public readonly description: string;
   public readonly context?: Dict<any>;
   public readonly stackTrace: StackTraceCollector;
@@ -182,6 +189,14 @@ export class ThrowableException extends Error {
     this.description = describeError(this.code);
     this.stackTrace = options?.stack ? StackTraceCollector.parse(options.stack) : StackTraceCollector.create();
     this.context = options?.context;
+
+    if(this.code > 0) {
+      this.code = -this.code;
+    }
+  }
+
+  public toErrorCode(): ERROR_CODE {
+    return -this.code;
   }
 
   public toObject(): AbstractErrorObject {
@@ -243,9 +258,24 @@ export class ThrowableException extends Error {
 export class InvalidArgumentException extends ThrowableException {
   public override readonly name: string;
 
-  public constructor(message?: string, options?: ErrorOptions) {
-    super(message, options);
+  public constructor(message?: string, options?: Omit<ErrorOptions, 'code'>) {
+    super(message, Object.assign({}, options, { code: ERROR_CODE.ERR_INVALID_ARGUMENT }));
     this.name = 'InvalidArgumentException';
+  }
+}
+
+export class NotImplementedException extends ThrowableException {
+  public override readonly name: string;
+
+  public constructor(location?: string, _paramsCollector?: any[], options?: Omit<ErrorOptions, 'code'>) {
+    const message = `Missing implementation of ${location ? ('method ' + location) : 'unknown method'}`;
+
+    super(message, Object.assign({}, options, { code: ERROR_CODE.ERR_NOT_IMPLEMENTED }));
+    this.name = 'NotImplementedException';
+
+    if(Array.isArray(_paramsCollector)) {
+      _paramsCollector.length = 0;
+    }
   }
 }
 
@@ -253,6 +283,7 @@ export class InvalidArgumentException extends ThrowableException {
 export function isThrowableException(arg: unknown): arg is ThrowableException {
   return (
     arg instanceof InvalidArgumentException ||
+    arg instanceof NotImplementedException ||
     arg instanceof ThrowableException
   );
 }
