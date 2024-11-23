@@ -86,7 +86,7 @@ export type InferObjectValue<T extends TableHeader, V = never> = (
     T extends { type: 'null' } ?
       null :
     never :
-  T['nullable'] extends true ? V | undefined : V
+  T['nullable'] extends true ? V | null | undefined : V
 );
 
 export type NativeSchemaObject<T extends { [key: string]: TableHeader }> = {
@@ -114,24 +114,37 @@ function bTreeComparator(a: [string, unknown], b: [string, unknown]): 1 | 0 | -1
 
 export type TableOpenProps = {
   filepath: string;
+  paranoidChecksMode?: boolean;
+  srictValidateChecksums?: boolean;
   encryptionKey?: string | Uint8Array | SharedArrayBuffer | ArrayBuffer;
 };
 
 export class Table<T extends object> {
-  static async #ParseHeader(header: Buffer, magic: Buffer, options: TableOpenProps & { len: number; file: File }): Promise<Header> {
+  static async #ParseHeader(header: Buffer, magic: Buffer, options: TableOpenProps): Promise<Header> {
     // This method parse the given Buffer object into a `Header` structure.
     //
-    // Header (4096 bytes):
-    // +------------------------+-------------------------+---------------------------
-    // | magic number (4 bytes) | header length (4 bytes) | total data size (4 bytes) 
-    // +------------------------+-------------------------+---------------------------
-    // ---------------------------------------+-----------------------------------+------------------------+--------------------+
-    //  byte length of `rowsLength` (4 bytes) | byte length of `schema` (4 bytes) | the `rowsLength` array | the `schema` array |
-    // ---------------------------------------+-----------------------------------+------------------------+--------------------+
+    // Header (4096 or more bytes):
+    // +---------------------------------------+
+    // |         magic number (4 bytes)        | 
+    // +---------------------------------------+
+    // |        header length (4 bytes)        |
+    // +---------------------------------------+
+    // |       total data size (4 bytes)       |
+    // +---------------------------------------+
+    // | byte length of `rowsLength` (4 bytes) |
+    // +---------------------------------------+
+    // |   byte length of `schema` (4 bytes)   |
+    // +---------------------------------------+
+    // |         the `rowsLength` array        |
+    // +---------------------------------------+
+    // |           the `schema` array          |
+    // +---------------------------------------+
 
-    for(let i = 0; i < MAGIC_HEADER.length; i++) { 
-      if(magic[i] !== MAGIC_HEADER[i]) {
-        throw new Exception('Failed to parse database header', 'ERR_MAGIC_NUMBER_MISSMATCH');
+    if(options.paranoidChecksMode !== false) {
+      for(let i = 0; i < MAGIC_HEADER.length; i++) { 
+        if(magic[i] !== MAGIC_HEADER[i]) {
+          throw new Exception('Failed to parse database header', 'ERR_MAGIC_NUMBER_MISSMATCH');
+        }
       }
     }
 
@@ -257,7 +270,7 @@ export class Table<T extends object> {
         const headerBuffer = Buffer.alloc(headerLength);
 
         await file.value.read(headerBuffer, Math.min(headerLength, file.value.byteLength), MAGIC_HEADER.length + 4);
-        const header = await this.#ParseHeader(headerBuffer, leftBuffer.subarray(0, MAGIC_HEADER.length), Object.assign({}, options, { file: file.value, len: headerLength }));
+        const header = await this.#ParseHeader(headerBuffer, leftBuffer.subarray(0, MAGIC_HEADER.length), options);
 
         // Resolve the promise with a new instance of `Table` as `Right`
         return right(new Table(file.value, header, options.encryptionKey));
@@ -531,8 +544,14 @@ export class Table<T extends object> {
     return this.#Header.rowsLength.length;
   }
 
-  public async insert(obj: _SchemaObject<T>): Promise<void> {
-    throw new IOStream.Exception.NotImplemented('Table#insert()', [obj]);
+  public insert(obj: _SchemaObject<T>, callback?: () => void): void {
+    const tree = new RedBlackTree<[string, unknown]>();
+
+    for(const prop in obj) {
+      upsert(tree, [prop, obj[prop]], bTreeComparator);
+    }
+
+    this.#DiskFlushQueue.add({ rowIndex: this.#Header.rowsLength.length, tree }, { onDone: callback });
   }
 
   public async close(): Promise<void> {

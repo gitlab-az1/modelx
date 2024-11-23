@@ -130,6 +130,8 @@ export namespace option {
 
   export const optionalDefined = toOptional( <T>(arg: T | null | undefined): arg is T => !!arg );
 
+  export const optionalBuffer = toOptional( (arg: Uint8Array | null | undefined): arg is Buffer => !!arg && Buffer.isBuffer(arg) );
+
 
   export function unwrap<T>(option: Option<T>): T {
     if(option[$type] === OptionType.Some) return option[$value];

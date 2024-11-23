@@ -20,6 +20,8 @@ import {
   NotImplementedException,
 } from './exceptions';
 
+import * as _ao from './asyncOrchestrator';
+
 
 export namespace IOStream {
   export interface Readable<T extends NonNullable<unknown> = Uint8Array> {
@@ -1267,6 +1269,15 @@ export namespace IOStream {
     export const describeError = getErrorDescription;
     export const stringifyErrorCode = _stringifyErrorCode;
     export const ERROR_CODES = createEnum('NO_ERROR', 'ERR_UNKNOWN_ERROR', 'ERR_INVALID_ARGUMENT');
+  }
+
+  export namespace Orchestrator {
+    export type LogEvent = _ao.LogEvent;
+    export interface OrchestratorOptions extends _ao.OrchestratorOptions { }
+    export interface AgentProcessingResult extends _ao.AgentProcessingResult { }
+
+    export abstract class Agent extends _ao.Agent { }
+    export class AsyncOrchestrator extends _ao.AsyncOrchestrator { }
   }
 }
 

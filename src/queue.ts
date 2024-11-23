@@ -549,6 +549,7 @@ export type QueueContextArgument<C, T> = {
   readonly jobId: string;
   readonly priority: number;
   readonly delay?: number;
+  readonly onDone?: (result?: unknown) => void;
 };
 
 export type QueueWorker<C = any, T = any, R = unknown> = (context: QueueContextArgument<C, T>) => R | Promise<R>;
@@ -563,6 +564,7 @@ export type QueuePushOptions = {
   jobId?: string;
   delay?: number;
   priority?: number;
+  onDone?: (result?: unknown) => void;
 }
 
 type IMQueueState = {
@@ -588,7 +590,7 @@ export class InMemoryQueue<TJob = any, TContext = any> implements IDisposable {
   #context?: TContext;
   readonly #state: IMQueueState;
   #worker: QueueWorker<TContext, TJob>;
-  readonly #heap: MinHeap<Pick<QueueContextArgument<TContext, TJob>, 'jobId' | 'payload' | 'priority' | 'delay'>>;
+  readonly #heap: MinHeap<Pick<QueueContextArgument<TContext, TJob>, 'jobId' | 'onDone' | 'payload' | 'priority' | 'delay'>>;
 
   public constructor(options?: InMemoryQueueOptions<TContext, TJob>) {
     if(typeof options?.concurrency === 'number' && !(options.concurrency >= 1)) {
@@ -633,6 +635,7 @@ export class InMemoryQueue<TJob = any, TContext = any> implements IDisposable {
     this.#heap.insert({
       payload,
       delay: options?.delay,
+      onDone: options?.onDone,
       priority: options?.priority || 0,
       jobId: options?.jobId || uuid(),
     });
@@ -653,10 +656,17 @@ export class InMemoryQueue<TJob = any, TContext = any> implements IDisposable {
         if(!nextJob) break;
 
         this.#state.runningJobs++;
+
+        const job = {
+          ...nextJob,
+          concurrency: this.#state.concurrency,
+          startedAt: Date.now(),
+          context: this.#context,
+        } as QueueContextArgument<TContext, TJob>;
         
         if(typeof nextJob.delay === 'number') {
           setTimeout(() => {
-            const executor = this.#worker(this.#prepareJob(nextJob));
+            const executor = this.#worker(job);
 
             if(isThenable(executor)) {
               isPromise = true;
@@ -669,13 +679,16 @@ export class InMemoryQueue<TJob = any, TContext = any> implements IDisposable {
                 this.#state.errorCallback?.(err);
               }).finally(() => {
                 this.#state.runningJobs--;
+                nextJob.onDone?.();
                 this.#processQueue();
               });
+            } else {
+              nextJob.onDone?.();
             }
           }, nextJob.delay);
         } else {
           EventLoop.schedule(() => {
-            const executor = this.#worker(this.#prepareJob(nextJob));
+            const executor = this.#worker(job);
 
             if(isThenable(executor)) {
               isPromise = true;
@@ -688,8 +701,11 @@ export class InMemoryQueue<TJob = any, TContext = any> implements IDisposable {
                 this.#state.errorCallback?.(err);
               }).finally(() => {
                 this.#state.runningJobs--;
+                nextJob.onDone?.();
                 this.#processQueue();
               });
+            } else {
+              nextJob.onDone?.();
             }
           });
         }
@@ -711,17 +727,6 @@ export class InMemoryQueue<TJob = any, TContext = any> implements IDisposable {
         this.#processQueue();
       }
     }
-  }
-
-  #prepareJob(job: Pick<QueueContextArgument<TContext, TJob>, 'jobId' | 'payload' | 'priority' | 'delay'>): QueueContextArgument<TContext, TJob> {
-    const obj = {
-      ...job,
-      concurrency: this.#state.concurrency,
-      startedAt: Date.now(),
-      context: this.#context,
-    } as QueueContextArgument<TContext, TJob>;
-
-    return Object.freeze(obj);
   }
 
   public process(worker: QueueWorker<TContext, TJob>): void {

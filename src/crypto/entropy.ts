@@ -34,7 +34,7 @@ export function isEntropyDevice(arg: unknown): arg is EntropyDevice {
 
 
 export const legacyDefaultEntropyDevice: EntropyDevice = Object.freeze<EntropyDevice>({
-  brand: `com.${typeof process === 'undefined' ? (typeof window !== 'undefined' ? '__web__' : '__platform__') : '__node__'}.rand.dev`,
+  brand: `com.${typeof process === 'undefined' ? (typeof window !== 'undefined' ? '__web__' : '__platform__') : '__node__'}.randdev`,
 
   invoke: Object.freeze(function(stopLength: number = 64, token: ICancellationToken = CancellationToken.None) {
     return promises.withAsyncBody<Uint8Array>(async (resolve, reject) => {
