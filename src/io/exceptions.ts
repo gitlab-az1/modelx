@@ -69,13 +69,13 @@ export class StackTraceCollector {
         const [, origin, filename, lineNum, colNum] = match;
 
         frames.push( new StackTraceFrame(
-          filename,
+          filename.trim(),
           parseInt(colNum, 10),
           parseInt(lineNum, 10),
           undefined,
-          line,
+          line.trim(),
           undefined,
-          origin || undefined,
+          origin?.trim() || undefined,
           line.includes('[native code]'),
           origin?.includes('new ') || false,
           i === 0 // eslint-disable-line comma-dangle

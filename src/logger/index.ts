@@ -1,12 +1,12 @@
 import { LogLevel, MessageStream } from './transporters';
-import { stringifyLevel, toLevel } from './transporters/core';
+import { AbstractLogger, stringifyLevel, toLevel } from './transporters/core';
 
 export * from './transporters';
 export * as transporters from './transporters';
 
 
 
-export interface Logger {
+export interface Logger extends AbstractLogger {
   readonly level: number;
   readonly stringifiedLevel: string;
 

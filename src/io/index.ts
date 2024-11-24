@@ -2,6 +2,7 @@
 
 import math from 'next-math';
 
+import _uri from './uri';
 import { createEnum } from '../object';
 import type { PrimitiveDataType } from '../types';
 import { IDisposable } from '../@internals/disposable';
@@ -1141,6 +1142,53 @@ export namespace IOStream {
     }
   }
 
+  export class Collection<T> {
+    readonly #Bucket: Map<number, T>;
+
+    public constructor(iterable?: Iterable<T>) {
+      this.#Bucket = new Map();
+      if(!iterable) return;
+
+      const arr = Array.from(iterable);
+
+      for(let i = 0; i < arr.length; i++) {
+        this.#Bucket.set(i, arr[i]);
+      }
+    }
+
+    public set(index: number, value: T): void {
+      this.#Bucket.set(index, value);
+    }
+
+    public get(index: number): T | undefined {
+      return this.#Bucket.get(index);
+    }
+
+    public splice(index: number, deleteCount?: number, ...replacer: T[]): number {
+      deleteCount ??= 1;
+      let j = 0;
+
+      for(let i = index; i < index + deleteCount; i++) {
+        this.#Bucket.delete(i);
+        const replaceValue = replacer[j++];
+
+        if(replaceValue) {
+          this.#Bucket.set(i, replaceValue);
+        }
+      }
+
+      return j;
+    }
+
+    public contains(value: T): boolean {
+      return Array.from(this.#Bucket.values()).includes(value);
+    }
+
+    public iterator(): Iterator<T> {
+      return new Iterator(this.#Bucket.values());
+    }
+  }
+
   const templateSupportedAliases = ['s', 'd', 'i', 'f', 'n', 'j'];
 
   export class str {
@@ -1184,6 +1232,8 @@ export namespace IOStream {
       return result + (remainingArgs ? ' ' + remainingArgs : '');
     }
   }
+
+  export class URI extends _uri { }
 
 
   export namespace Exception {
@@ -1274,10 +1324,10 @@ export namespace IOStream {
   export namespace Orchestrator {
     export type LogEvent = _ao.LogEvent;
     export interface OrchestratorOptions extends _ao.OrchestratorOptions { }
-    export interface AgentProcessingResult extends _ao.AgentProcessingResult { }
+    export interface AgentProcessingResult<T = unknown> extends _ao.AgentProcessingResult<T> { }
 
-    export abstract class Agent extends _ao.Agent { }
-    export class AsyncOrchestrator extends _ao.AsyncOrchestrator { }
+    export abstract class Agent<R = unknown, P = any> extends _ao.Agent<R, P> { }
+    export class AsyncOrchestrator<T extends object> extends _ao.AsyncOrchestrator<T> { }
   }
 }
 

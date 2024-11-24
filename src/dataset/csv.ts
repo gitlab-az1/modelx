@@ -12,26 +12,73 @@ export type CSVParserOptions = {
   commaAlias?: string;
 };
 
-export function csv<T extends object>(input: BinaryHolder | string, options?: CSVParserOptions): T[] {
+export function csv<T extends object>(
+  input: BinaryHolder | string,
+  options?: CSVParserOptions,
+): T[] {
   const result = [] as T[];
   const content = (typeof input === 'string' ? input : buffer(input).toString()).trim();
   const rows = content.split(content.includes('\r\n') ? '\r\n' : '\n');
 
-  if(rows.length === 1 && options?.ignoreHeader !== true) return [];
+  if (rows.length === 0 || (rows.length === 1 && options?.ignoreHeader !== true)) return [];
+
   const header = options?.ignoreHeader === true ? null : [] as string[];
+
+  const parseRow = (line: string): string[] => {
+    const tokens = [];
+    let currentToken = '';
+    let insideQuote = false;
+    let quoteChar = '';
+
+    for(let i = 0; i < line.length; i++) {
+      const char = line[i];
+
+      if(insideQuote) {
+        if(char === quoteChar) {
+          // Closing quote
+          if(line[i + 1] === quoteChar) {
+            // Escaped quote ("" or '')
+            currentToken += char;
+            i++; // Skip the next character
+          } else {
+            insideQuote = false;
+          }
+        } else {
+          currentToken += char;
+        }
+      } else {
+        if(char === '"' || char === '\'') {
+          // Starting quote
+          insideQuote = true;
+          quoteChar = char;
+        } else if(char === ',') {
+          // Column delimiter
+          tokens.push(currentToken.trim());
+          currentToken = '';
+        } else {
+          currentToken += char;
+        }
+      }
+    }
+
+    // Push the last token
+    tokens.push(currentToken.trim());
+
+    return tokens.map(token =>
+      token.replace(new RegExp(`\\${options?.commaAlias || '%c'}`, 'g'), ','),
+    );
+  };
 
   for(let i = 0; i < rows.length; i++) {
     const row = {} as Record<string | number, string | number | Interval | boolean | null>;
-    const columns = rows[i].split(',').map(item => {
-      return item.trim().replace(new RegExp(`\\${options?.commaAlias || '%c'}`, 'g'), ',');
-    });
+    const columns = parseRow(rows[i]);
 
     for(let j = 0; j < columns.length; j++) {
       if(i === 0 && header != null) {
         header.push(columns[j]);
       } else {
-        // const index = header != null ? header[j] : j;
-        row[header != null ? header[j] : j] = _eval(columns[j]);
+        const index = header != null ? header[j] : j;
+        row[index] = _eval(columns[j]);
       }
     }
 
@@ -42,6 +89,7 @@ export function csv<T extends object>(input: BinaryHolder | string, options?: CS
 
   return result;
 }
+
 
 
 export type CSVReadOptions = {

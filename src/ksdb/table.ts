@@ -4,7 +4,6 @@ import { delay } from '@ts-overflow/async/core';
 
 import IOStream from '../io';
 import { ensureDir } from '../fs';
-import { InMemoryQueue } from '../queue';
 import { Exception } from '../@internals/errors';
 import { optionalDefined, unwrap } from '../option';
 import { chunkToBuffer } from '../@internals/buffer';
@@ -103,6 +102,13 @@ type _SchemaObject<T extends object> = {
     cast?: Omit<TableHeader, 'fieldName' | 'nullable' | 'constraints'>;
   };
 };
+
+
+const enum FlushOperation {
+  WriteInsertion,
+  WriteUpdate,
+  WriteDeletion,
+}
 
 
 function bTreeComparator(a: [string, unknown], b: [string, unknown]): 1 | 0 | -1 {
@@ -247,7 +253,7 @@ export class Table<T extends object> {
       // Ensure that the table's file directory exists
       await ensureDir(path.dirname(options.filepath));
 
-      if(!fs.existsSync(options.filepath)) { // Creates a new empty file with just the header if not exists
+      if(!fs.existsSync(options.filepath)) { // Creates a new empty file if not exists
         await this.#CreateEmptyFile(options);
       }
       
@@ -354,7 +360,7 @@ export class Table<T extends object> {
   readonly #File: File;
   readonly #Header: Header;
   #CachedRows: RedBlackTree<[ number, RedBlackTree<[string, unknown]> ]>;
-  #DiskFlushQueue: InMemoryQueue<{ rowIndex: number; tree: RedBlackTree<[string, unknown]> }>;
+  #PendingDiskFlushes: { rowIndex: number; tree: RedBlackTree<[string, unknown]>; readonly op: FlushOperation }[];
 
   #EncryptionKey?: Buffer;
 
@@ -375,20 +381,16 @@ export class Table<T extends object> {
 
     this.#File = _file;
     this.#Header = _header;
+    this.#PendingDiskFlushes = [];
     this.#CachedRows = new RedBlackTree();
     // eslint-disable-next-line no-extra-boolean-cast
     this.#EncryptionKey = !!_ek ? chunkToBuffer(_ek) : undefined;
-    this.#DiskFlushQueue = new InMemoryQueue({ concurrency: 1 });
     
     this.#State = {
       closed: false,
       ioBlocked: false,
       byteLength: _header.totalSize,
     };
-
-    this.#DiskFlushQueue.process(async ({ payload }) => {
-      await this.#WriteRow(payload.rowIndex, payload.tree);
-    });
   }
 
   #GetBalancedTreeFromCache(rowIndex: number): RedBlackTree<[string, unknown]> | null {
@@ -544,21 +546,18 @@ export class Table<T extends object> {
     return this.#Header.rowsLength.length;
   }
 
-  public insert(obj: _SchemaObject<T>, callback?: () => void): void {
+  public insert(obj: _SchemaObject<T>): void {
     const tree = new RedBlackTree<[string, unknown]>();
 
     for(const prop in obj) {
       upsert(tree, [prop, obj[prop]], bTreeComparator);
     }
 
-    this.#DiskFlushQueue.add({ rowIndex: this.#Header.rowsLength.length, tree }, { onDone: callback });
+    this.#PendingDiskFlushes.push({ rowIndex: this.#Header.rowsLength.length, tree, op: FlushOperation.WriteInsertion });
   }
 
   public async close(): Promise<void> {
     if(this.#State.closed) return;
-
-    this.#DiskFlushQueue.pause();
-    this.#DiskFlushQueue.dispose();
 
     await this.#File.close();
     this.#CachedRows.root = null!;

@@ -9,6 +9,15 @@ import {
 } from '../../@internals/util';
 
 
+export interface AbstractLogger {
+  log(message?: any, ...args: any[]): void;
+  info(message?: any, ...args: any[]): void;
+  warn(message?: any, ...args: any[]): void;
+  error(message?: any, ...args: any[]): void;
+  trace(message?: any, ...args: any[]): void;
+  debug(message?: any, ...args: any[]): void;
+}
+
 export const enum LogLevel {
   Info = 0xF,
   Debug = 0x11,
@@ -34,7 +43,7 @@ export type MessageStreamOptions = {
   forceConsole?: boolean;
 }
 
-export abstract class MessageStream extends EventEmitter {
+export abstract class MessageStream extends EventEmitter implements AbstractLogger {
   private _eol: string;
   private _ns: string | null;
   protected _omitDate: boolean;

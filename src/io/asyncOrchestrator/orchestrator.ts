@@ -5,10 +5,14 @@ import { Exception } from '../../@internals/errors';
 import { assertString } from '../../@internals/util';
 import type { LooseAutocomplete } from '../../types';
 import Agent, { AgentProcessingResult } from './agent';
+import { AbstractLogger } from '../../logger/transporters/core';
 
 
 export type LogEvent = 
-  | '';
+  | 'agent_processing_start'
+  | 'agent_processing_end'
+  | 'agent_processing_error'
+  | 'orchestrator_disposing';
 
 
 export interface OrchestratorOptions {
@@ -22,6 +26,7 @@ export interface OrchestratorOptions {
   agentIdentifier?: string;
   useDefaultAgentIdentifier?: boolean;
   maxMessagePairsForAgent?: number;
+  logger?: AbstractLogger;
 }
 
 
@@ -29,9 +34,9 @@ type OrchestratorState = {
   disposed: boolean;
 }
 
-export class AsyncOrchestrator<T extends object = { [key: string]: [any, unknown] }> extends Disposable {
+export class AsyncOrchestrator<T extends object> extends Disposable {
+  readonly #Logger: AbstractLogger;
   readonly #State: OrchestratorState;
-  // @ts-expect-error Property AsyncOrchestrator#RegisteredAgents is never readed
   readonly #RegisteredAgents: Map<string, Agent>;
 
   public constructor(options?: OrchestratorOptions) {
@@ -43,6 +48,31 @@ export class AsyncOrchestrator<T extends object = { [key: string]: [any, unknown
     };
 
     this.#RegisteredAgents = new Map();
+    this.#Logger = options?.logger || console;
+  }
+
+  public registerAgent(agent: Agent): void {
+    if(this.#State.disposed) {
+      throw new Exception('Cannot operate an disposed orchestrator', 'ERR_RESOURCE_DISPOSED');
+    }
+
+    if(this.#RegisteredAgents.has(agent.agentId)) {
+      throw new Exception(`Cannot register agent '${agent.agentId}' twice`, 'ERR_UNSUPPORTED_OPERATION');
+    }
+
+    this.#RegisteredAgents.set(agent.agentId, agent);
+  }
+
+  public removeAgent(agent: string | Agent): boolean {
+    if(this.#State.disposed) {
+      throw new Exception('Cannot operate an disposed orchestrator', 'ERR_RESOURCE_DISPOSED');
+    }
+
+    const storedAgent = this.#RegisteredAgents.get(typeof agent === 'string' ? agent : agent.agentId);
+    if(!storedAgent) return false;
+
+    storedAgent.dispose();
+    return true;
   }
 
   public async callAsync<K extends keyof T>(
@@ -69,13 +99,17 @@ export class AsyncOrchestrator<T extends object = { [key: string]: [any, unknown
   }
 
   public override dispose(): void {
+    super.dispose();
+
     if(!this.#State.disposed) {
-      //#
+      this.#RegisteredAgents.clear();
+
+      if(typeof (this.#Logger as { dispose?: () => void }).dispose === 'function') {
+        (this.#Logger as { dispose?: () => void }).dispose?.();
+      }
 
       this.#State.disposed = true;
     }
-
-    super.dispose();
   }
 }
 
