@@ -467,6 +467,7 @@ export class Table<T extends object> {
     return offset; // Return the calculated offset
   }
 
+  // @ts-expect-error The method Table#writeRow() is never called
   async #WriteRow(rowIndex: number, tree: RedBlackTree<[string, unknown]>): Promise<void> {
     throw new IOStream.Exception.NotImplemented('Table#writeRow()', [rowIndex, tree]);
     const header = await this.#BuildHeader();
