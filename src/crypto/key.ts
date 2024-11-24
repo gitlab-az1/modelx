@@ -83,7 +83,7 @@ export async function deriveKey(
 
     const pwd = typeof password === 'string' ? Buffer.from(password) : buffer(password);
     password = null!;
-
+    
     let it = 100000;
 
     if(typeof options?.iterations === 'number') {

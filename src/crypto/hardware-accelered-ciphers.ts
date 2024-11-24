@@ -1,78 +1,12 @@
 import * as nodec from 'node:crypto';
-import { hmac } from 'cryptx-sdk/hash';
 import { AES, SymmetricKey } from 'cryptx-sdk/symmetric';
 
 import { Exception } from '../@internals/errors';
 import { jsonSafeParser } from '../@internals/json';
 
 
-const DEFAULT_SALT = '67419b10367f455590fbd34105c92bfa';
-
-export function salt(): Buffer {
-  if(!process.env.KS_SIG_KEY) return Buffer.from(DEFAULT_SALT, 'hex');
-
-  const enc = !!process.env.KS_SIG_ENCODING && Buffer.isEncoding(process.env.KS_SIG_ENCODING) ? 
-    process.env.KS_SIG_ENCODING : undefined;
-
-  return Buffer.from(process.env.KS_SIG_KEY, enc);
-}
-
-export function deriveKey(key: Buffer, iterations?: number): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    nodec.pbkdf2(
-      key,
-      salt(),
-      iterations || 100000,
-      64,
-      'sha512',
-      (err, buffer) => {
-        if(!err) return resolve(buffer);
-        reject(err);
-      } );
-  });
-}
-
-
-export function encryptIfKey(payload: Buffer, key?: never): Promise<Buffer>;
-export function encryptIfKey(payload: Buffer, key: string | Uint8Array): Promise<readonly [Buffer, Buffer]>;
-export async function encryptIfKey(payload: Buffer, key?: string | Uint8Array): Promise<readonly [Buffer, Buffer] | Buffer> {
-  if(!key) return payload;
-
-  const derivedKey = await deriveKey(Buffer.isBuffer(key) ? key : Buffer.from(key));
-
-  if(derivedKey.byteLength < 60) {
-    throw new Exception('The encryption key for database buffers must have at least 60 bytes', 'ERR_CRYPTO_SHORT_KEY');
-  }
-
-  const hmacKey = derivedKey.subarray(48);
-  const encrypted = await crypto.encrypt('aes_cbc_256', derivedKey, payload);
-  const signU8 = await hmac(payload, hmacKey, 'sha512', 'bytearray');
-
-  return Object.freeze([Buffer.from(signU8), encrypted] as const);
-}
-
-export function decryptIfKey(payload: Buffer, key?: never): Promise<Buffer>;
-export function decryptIfKey(payload: Buffer, key: string | Uint8Array): Promise<readonly [Buffer, Buffer] | Buffer>;
-export async function decryptIfKey(payload: Buffer, key?: string | Uint8Array): Promise<readonly [Buffer, Buffer] | Buffer> {
-  if(!key) return payload;
-
-  const derivedKey = await deriveKey(Buffer.isBuffer(key) ? key : Buffer.from(key));
-
-  if(derivedKey.byteLength < 60) {
-    throw new Exception('The encryption key for database buffers must have at least 60 bytes', 'ERR_CRYPTO_SHORT_KEY');
-  }
-
-  const hmacKey = derivedKey.subarray(48);
-  const decrypted = await crypto.decrypt('aes_cbc_256', derivedKey, payload);
-  const signU8 = await hmac(decrypted, hmacKey, 'sha512', 'bytearray');
-
-  return Object.freeze([decrypted, Buffer.from(signU8)] as const);
-}
-
-
-
 // eslint-disable-next-line @typescript-eslint/no-namespace
-namespace crypto {
+export namespace hardwareAcceleredCiphers {
   export enum algorithms {
     aes_gcm_128,
     aes_cbc_128,
@@ -166,7 +100,7 @@ namespace crypto {
 }
 
 
-async function _encryptWithHmac(algorithm: keyof typeof crypto.algorithms, key: Buffer, content: any, encoding?: BufferEncoding): Promise<Buffer | string> {
+async function _encryptWithHmac(algorithm: keyof typeof hardwareAcceleredCiphers.algorithms, key: Buffer, content: any, encoding?: BufferEncoding): Promise<Buffer | string> {
   if(!['xaes_gcm_hmac_256', 'xaes_cbc_hmac_256'].includes(algorithm)) {
     throw new Exception(`Cannot create '${algorithm}' cipher`, 'ERR_CRYPTO_INVALID_ALGORITHM');
   }
@@ -180,7 +114,7 @@ async function _encryptWithHmac(algorithm: keyof typeof crypto.algorithms, key: 
   const e = await aes.encrypt(content);
   const buf = Buffer.alloc(e.buffer.byteLength + 1);
 
-  buf.writeUint8(crypto.algorithms[algorithm], 0);
+  buf.writeUint8(hardwareAcceleredCiphers.algorithms[algorithm], 0);
 
   for(let i = 0; i < e.buffer.length; i++) {
     buf[i + 1] = e.buffer[i];
@@ -190,7 +124,7 @@ async function _encryptWithHmac(algorithm: keyof typeof crypto.algorithms, key: 
   return buf.toString(encoding);
 }
 
-function _encryptWithoutHmac(algorithm: keyof typeof crypto.algorithms, skey: Buffer, content: any, encoding?: BufferEncoding): Promise<Buffer | string> {
+function _encryptWithoutHmac(algorithm: keyof typeof hardwareAcceleredCiphers.algorithms, skey: Buffer, content: any, encoding?: BufferEncoding): Promise<Buffer | string> {
   const { iv, key } = _consumeKey(algorithm, skey);
   const cipher = nodec.createCipheriv(_getNodeAlgorithm(algorithm), key, iv);
 
@@ -198,7 +132,7 @@ function _encryptWithoutHmac(algorithm: keyof typeof crypto.algorithms, skey: Bu
   cipher.destroy();
 
   const output = Buffer.alloc(enc.byteLength + 1);
-  output.writeUint8(crypto.algorithms[algorithm], 0);
+  output.writeUint8(hardwareAcceleredCiphers.algorithms[algorithm], 0);
 
   for(let i = 0; i < enc.length; i++) {
     output[i + 1] = enc[i];
@@ -212,16 +146,16 @@ function _encryptWithoutHmac(algorithm: keyof typeof crypto.algorithms, skey: Bu
 async function _decryptWithHmac(input: Buffer, skey: Buffer, encoding?: BufferEncoding): Promise<readonly [Buffer | string, Buffer]> {
   const algorithm = input.readUint8(0);
 
-  if(!['xaes_gcm_hmac_256', 'xaes_cbc_hmac_256'].includes(crypto.algorithms[algorithm])) {
+  if(!['xaes_gcm_hmac_256', 'xaes_cbc_hmac_256'].includes(hardwareAcceleredCiphers.algorithms[algorithm])) {
     throw new Exception(`Cannot create '${algorithm}' cipher`, 'ERR_CRYPTO_INVALID_ALGORITHM');
   }
 
   const k = new SymmetricKey(skey, {
-    algorithm: crypto.algorithms[algorithm] === 'xaes_cbc_hmac_256' ? 'aes-256-cbc' : 'aes-256-gcm',
+    algorithm: hardwareAcceleredCiphers.algorithms[algorithm] === 'xaes_cbc_hmac_256' ? 'aes-256-cbc' : 'aes-256-gcm',
     usages: ['encrypt', 'decrypt', 'sign', 'verify'],
   });
 
-  const aes = new AES(k, crypto.algorithms[algorithm] === 'xaes_gcm_hmac_256' ? 'aes-256-gcm' : 'aes-256-cbc');
+  const aes = new AES(k, hardwareAcceleredCiphers.algorithms[algorithm] === 'xaes_gcm_hmac_256' ? 'aes-256-gcm' : 'aes-256-cbc');
   const dec = await aes.decrypt<any>(input.subarray(1));
   
   if(!encoding) return [Buffer.from(dec.payload, 'utf-8'), Buffer.isBuffer(dec.signature) ? dec.signature : Buffer.from(dec.signature)];
@@ -231,12 +165,12 @@ async function _decryptWithHmac(input: Buffer, skey: Buffer, encoding?: BufferEn
 function _decryptWithoutHmac(input: Buffer, skey: Buffer, encoding?: BufferEncoding): Promise<Buffer | string> {
   const algorithm = input.readUint8(0);
 
-  if(['xaes_gcm_hmac_256', 'xaes_cbc_hmac_256'].includes(crypto.algorithms[algorithm])) {
+  if(['xaes_gcm_hmac_256', 'xaes_cbc_hmac_256'].includes(hardwareAcceleredCiphers.algorithms[algorithm])) {
     throw new Exception(`Cannot create '${algorithm}' cipher`, 'ERR_CRYPTO_INVALID_ALGORITHM');
   }
 
-  const { iv, key, authTag } = _consumeKey(crypto.algorithms[algorithm] as unknown as crypto.algorithms, skey);
-  const cipher = nodec.createDecipheriv(_getNodeAlgorithm(crypto.algorithms[algorithm] as unknown as crypto.algorithms), key, iv);
+  const { iv, key, authTag } = _consumeKey(hardwareAcceleredCiphers.algorithms[algorithm] as unknown as hardwareAcceleredCiphers.algorithms, skey);
+  const cipher = nodec.createDecipheriv(_getNodeAlgorithm(hardwareAcceleredCiphers.algorithms[algorithm] as unknown as hardwareAcceleredCiphers.algorithms), key, iv);
 
   if(!!authTag && Buffer.isBuffer(authTag)) {
     (<any>cipher).setAuthTag(authTag);
@@ -250,19 +184,19 @@ function _decryptWithoutHmac(input: Buffer, skey: Buffer, encoding?: BufferEncod
 }
 
 
-function _getNodeAlgorithm(alg: keyof typeof crypto.algorithms | crypto.algorithms): string {
+function _getNodeAlgorithm(alg: keyof typeof hardwareAcceleredCiphers.algorithms | hardwareAcceleredCiphers.algorithms): string {
   switch(alg) {
     case 'aes_cbc_128':
-    case crypto.algorithms.aes_cbc_128:
+    case hardwareAcceleredCiphers.algorithms.aes_cbc_128:
       return 'aes-128-cbc';
     case 'aes_cbc_256':
-    case crypto.algorithms.aes_cbc_256:
+    case hardwareAcceleredCiphers.algorithms.aes_cbc_256:
       return 'aes-256-cbc';
     case 'aes_gcm_128':
-    case crypto.algorithms.aes_gcm_128:
+    case hardwareAcceleredCiphers.algorithms.aes_gcm_128:
       return 'aes-128-gcm';
     case 'aes_gcm_256':
-    case crypto.algorithms.aes_gcm_256:
+    case hardwareAcceleredCiphers.algorithms.aes_gcm_256:
       return 'aes-256-gcm';
     default:
       throw new Exception(`Cannot create '${alg}' cipher`, 'ERR_CRYPTO_INVALID_ALGORITHM');
@@ -276,7 +210,7 @@ type DearmoredKey = {
   authTag?: Buffer;
 }
 
-function _consumeKey(algorithm: keyof typeof crypto.algorithms | crypto.algorithms, superkey: Buffer): DearmoredKey {
+function _consumeKey(algorithm: keyof typeof hardwareAcceleredCiphers.algorithms | hardwareAcceleredCiphers.algorithms, superkey: Buffer): DearmoredKey {
   const algoMap: { [key: string]: { keyLen: number; ivLen: number; authTagLen?: number }} = {
     'aes_cbc_128': { keyLen: 16, ivLen: 16 },
     'aes_cbc_256': { keyLen: 32, ivLen: 16 },
@@ -285,10 +219,10 @@ function _consumeKey(algorithm: keyof typeof crypto.algorithms | crypto.algorith
   };
 
   const enumAlgoMap: { [key: string | number]: { keyLen: number; ivLen: number; authTagLen?: number }} = {
-    [crypto.algorithms.aes_cbc_128]: { keyLen: 16, ivLen: 16 },
-    [crypto.algorithms.aes_cbc_256]: { keyLen: 32, ivLen: 16 },
-    [crypto.algorithms.aes_gcm_128]: { keyLen: 16, ivLen: 12, authTagLen: 16 },
-    [crypto.algorithms.aes_gcm_256]: { keyLen: 32, ivLen: 12, authTagLen: 16 },
+    [hardwareAcceleredCiphers.algorithms.aes_cbc_128]: { keyLen: 16, ivLen: 16 },
+    [hardwareAcceleredCiphers.algorithms.aes_cbc_256]: { keyLen: 32, ivLen: 16 },
+    [hardwareAcceleredCiphers.algorithms.aes_gcm_128]: { keyLen: 16, ivLen: 12, authTagLen: 16 },
+    [hardwareAcceleredCiphers.algorithms.aes_gcm_256]: { keyLen: 32, ivLen: 12, authTagLen: 16 },
   };
 
   const config = algoMap[algorithm] || enumAlgoMap[algorithm];
@@ -310,5 +244,4 @@ function _consumeKey(algorithm: keyof typeof crypto.algorithms | crypto.algorith
   return { iv, key, authTag };
 }
 
-
-export default crypto;
+export default hardwareAcceleredCiphers;
