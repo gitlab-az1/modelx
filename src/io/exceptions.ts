@@ -115,14 +115,13 @@ export function stringifyErrorCode(code: number): string {
   switch(code) {
     case ERROR_CODE.NO_ERROR:
       return 'NO_ERROR';
-    case ERROR_CODE.ERR_UNKNOWN_ERROR:
-      return 'ERR_UNKNOWN_ERROR';
     case ERROR_CODE.ERR_INVALID_ARGUMENT:
-      return 'ERR_INVALID_ARGUMENT';
+        return 'ERR_INVALID_ARGUMENT';
     case ERROR_CODE.ERR_NOT_IMPLEMENTED:
       return 'ERR_NOT_IMPLEMENTED';
+    case ERROR_CODE.ERR_UNKNOWN_ERROR:
     default:
-      throw new Error('Unreachable code');
+      return 'ERR_UNKNOWN_ERROR';
   }
 }
 
@@ -130,14 +129,13 @@ export function describeError(code: number | keyof typeof ERROR_CODE): string {
   switch(typeof code === 'number' ? code : toErrorCode(code)) {
     case ERROR_CODE.NO_ERROR:
       return 'The code was sucessful executed with no errors';
-    case ERROR_CODE.ERR_UNKNOWN_ERROR:
-      return 'An unknown error occurred and the application did not handle it';
     case ERROR_CODE.ERR_INVALID_ARGUMENT:
       return 'An invalid argument was provided in somewhere of code';
     case ERROR_CODE.ERR_NOT_IMPLEMENTED:
       return 'An non-implemented method was called in somewhere of code';
+    case ERROR_CODE.ERR_UNKNOWN_ERROR:
     default:
-      throw new Error('Unreachable code');
+      return 'An unknown error occurred and the application did not handle it';
   }
 }
 
