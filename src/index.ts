@@ -4,6 +4,9 @@ export * as crypto from './crypto';
 export * from './math';
 export * as math from './math';
 
+export * from './telemetry';
+export * as telemetry from './telemetry';
+
 export * from './btree';
 
 export * from './transporters';
@@ -12,6 +15,7 @@ export * from './matrix';
 
 export * from './object';
 
+export * from './io';
 export * from './fs';
 export * from './types';
 export * from './queue';

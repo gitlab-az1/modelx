@@ -1,4 +1,10 @@
+import { delay } from '@ts-overflow/async/core';
+import { EventLoop } from '@ts-overflow/async/event-loop';
+
+import IOStream from '../io';
+import { Span } from './metrics';
 import type { Dict } from '../types';
+import { ensureDirSync } from '../fs';
 import { uuid } from '../@internals/id';
 import { Exception } from '../@internals/errors';
 import { IDisposable } from '../@internals/disposable';
@@ -13,6 +19,7 @@ import {
   ASCI_MAGENTA,
   ASCI_RED,
   ASCI_RESET,
+  assert,
 } from '../@internals/util';
 
 
@@ -29,7 +36,7 @@ export enum LOG_LEVEL {
 
 export interface LogEntry {
   message: string;
-  arguments: any[];
+  args: any[];
   context?: Dict<any>;
   timestamp: number;
   level: LOG_LEVEL;
@@ -108,6 +115,10 @@ export class TelemetryLogger implements AbstractLogger, IDisposable {
     return this.#state.level;
   }
 
+  public get transporters(): readonly LoggerTransporter[] {
+    return Object.freeze([ ...this.#transporters.values() ]);
+  }
+
   public onEntry(callback: (_entry: LogEntry & { plainTextMessage: string }) => void): void {
     if(this.#state.disposed) return;
 
@@ -143,6 +154,16 @@ export class TelemetryLogger implements AbstractLogger, IDisposable {
     );
   }
 
+  public removeAllTransporters(dispose: boolean = false): void {
+    if(dispose) {
+      for(const transporter of this.#transporters.values()) {
+        transporter.dispose?.();
+      }
+    }
+
+    this.#transporters.clear();
+  }
+
   public setParent(parentLogger: AbstractLogger): boolean {
     if(this.#state.disposed) return false;
     if(this.#parentLogger) return false;
@@ -174,7 +195,7 @@ export class TelemetryLogger implements AbstractLogger, IDisposable {
     return true;
   }
 
-  public info(message: string, context?: Dict<any>, ...args: any[]): void {
+  public info(message: string, context?: Dict<any> | null, ...args: any[]): void {
     if(this.#state.disposed) return;
     if(!this.#shouldLog(LOG_LEVEL.INFO)) return;
 
@@ -184,7 +205,7 @@ export class TelemetryLogger implements AbstractLogger, IDisposable {
     this.#callEntryListeners(entry);
   }
 
-  public warn(message: string, context?: Dict<any>, ...args: any[]): void {
+  public warn(message: string, context?: Dict<any> | null, ...args: any[]): void {
     if(this.#state.disposed) return;
     if(!this.#shouldLog(LOG_LEVEL.WARNING)) return;
 
@@ -194,7 +215,7 @@ export class TelemetryLogger implements AbstractLogger, IDisposable {
     this.#callEntryListeners(entry);
   }
 
-  public error(message: string, context?: Dict<any>, ...args: any[]): void {
+  public error(message: string, context?: Dict<any> | null, ...args: any[]): void {
     if(this.#state.disposed) return;
     if(!this.#shouldLog(LOG_LEVEL.ERROR)) return;
 
@@ -204,7 +225,7 @@ export class TelemetryLogger implements AbstractLogger, IDisposable {
     this.#callEntryListeners(entry);
   }
 
-  public trace(message: string, context?: Dict<any>, ...args: any[]): void {
+  public trace(message: string, context?: Dict<any> | null, ...args: any[]): void {
     if(this.#state.disposed) return;
     if(!this.#shouldLog(LOG_LEVEL.TRACE)) return;
 
@@ -214,7 +235,7 @@ export class TelemetryLogger implements AbstractLogger, IDisposable {
     this.#callEntryListeners(entry);
   }
 
-  public verbose(message: string, context?: Dict<any>, ...args: any[]): void {
+  public verbose(message: string, context?: Dict<any> | null, ...args: any[]): void {
     if(this.#state.disposed) return;
     if(!this.#shouldLog(LOG_LEVEL.VERBOSE)) return;
 
@@ -255,10 +276,10 @@ export class TelemetryLogger implements AbstractLogger, IDisposable {
 
     switch(this.#state.flushMode) {
       case 'skip-to-parent':
-        this.#parentLogger?.[_levelToString(entry.level)](entry.message, ...entry.arguments);
+        this.#parentLogger?.[_levelToString(entry.level)](entry.message, ...entry.args);
         break;
       case 'inherit-io': {
-        this.#parentLogger?.[_levelToString(entry.level)](entry.message, ...entry.arguments);
+        this.#parentLogger?.[_levelToString(entry.level)](entry.message, ...entry.args);
 
         const textMessage = this.#stringifyEntry(entry);
         
@@ -300,11 +321,11 @@ export class TelemetryLogger implements AbstractLogger, IDisposable {
     }
   }
 
-  #buildEntry(message: string, args: any[], context?: Dict<any>, level?: LOG_LEVEL): LogEntry {
+  #buildEntry(message: string, args: any[], context?: Dict<any> | null, level?: LOG_LEVEL): LogEntry {
     return {
       message,
-      arguments: args,
-      context,
+      args,
+      context: context || undefined,
       timestamp: Date.now(),
       level: level || this.#state.level,
       service: this.#serviceName || null,
@@ -323,19 +344,19 @@ export class TelemetryLogger implements AbstractLogger, IDisposable {
     if(this.#serviceName) {
       textMessage += ` ${ASCI_MAGENTA}(${this.#serviceName})${ASCI_RESET}`;
     }
-
-    if(!!entry.arguments && Array.isArray(entry.arguments)) {
-      for(let i = 0; i < entry.arguments.length; i++) {
-        if(typeof (entry.arguments[i] as any).message === 'string') {
-          const errCandidate = (entry.arguments[i] as unknown as Error);
-          entry.arguments[i] = `|${errCandidate.name}| ${errCandidate.message} at ${errCandidate.stack || 'Unknown stack trace'}`;
-        } else if(typeof entry.arguments[i] === 'object') {
-          entry.arguments[i] = jsonSafeStringify(entry.arguments[i], null, 2) || '';
+    
+    if(!!entry.args && Array.isArray(entry.args)) {
+      for(let i = 0; i < entry.args.length; i++) {
+        if(typeof (entry.args[i] as any).message === 'string') {
+          const errCandidate = (entry.args[i] as unknown as Error);
+          entry.args[i] = `|${errCandidate.name}| ${errCandidate.message} at ${errCandidate.stack || 'Unknown stack trace'}`;
+        } else if(typeof entry.args[i] === 'object') {
+          entry.args[i] = jsonSafeStringify(entry.args[i], null, 2) || '';
         }
       }
     }
-
-    return `${textMessage.trim()} ${formatStringTemplate(entry.message, entry.arguments)}${this.#state.eol}`;
+    
+    return `${textMessage.trim()} ${formatStringTemplate(entry.message, entry.args.concat([entry.context ? jsonSafeStringify({ context: entry.context }, null, 2) : null].filter(Boolean))).trim()}${this.#state.eol}`;
   }
 
   #shouldLog(level: LOG_LEVEL): boolean {
@@ -387,6 +408,267 @@ export abstract class LoggerTransporter {
   public abstract readonly level: LOG_LEVEL;
   public abstract acceptEntry(entry: LogEntry & { plainTextMessage: string }): void | Promise<void>;
   public abstract dispose?(): void;
+  public abstract whenIdle?(): Promise<void>;
+}
+
+
+// eslint-disable-next-line @typescript-eslint/no-namespace
+export namespace NodeJSLoggerEnvironment {
+  /* eslint-disable no-inner-declarations */
+  const environmentModules: {
+    filesystem?: typeof import('fs');
+    path?: typeof import('path');
+  } = { };
+
+  function _modules(): Required<typeof environmentModules> {
+    if(!environmentModules.filesystem) {
+      environmentModules.filesystem = require('fs');
+    }
+
+    if(!environmentModules.path) {
+      environmentModules.path = require('path');
+    }
+
+    return environmentModules as Required<typeof environmentModules>;
+  }
+
+  type FileTransporterState = {
+    disposed: boolean;
+    level: LOG_LEVEL;
+    fileLocation: IOStream.URI;
+    maxFileSize?: number;
+    byteLength: number;
+    pendingBytes: number;
+    eol: string;
+    ioState: 'busy' | 'idle' | 'disposed' | 'error';
+    silenceErrors: boolean;
+  }
+
+  export type FileTransporterOptions = {
+    filepath: string | IOStream.URI;
+    level?: LOG_LEVEL;
+    maxFileSize?: number;
+    eol?: string;
+    silent?: boolean;
+    onError?: (e: Exception) => void;
+  }
+
+  export class FileTransporter extends LoggerTransporter {
+    readonly #state: FileTransporterState;
+    #onError?: (e: Exception) => void;
+    #onIdle?: Set<() => void>;
+    readonly #pendingWriteEntries: (LogEntry & { plainTextMessage: string })[];
+
+    public constructor(options: FileTransporterOptions) {
+      super();
+      const { path, filesystem } = _modules();
+
+      if(!(options.filepath instanceof IOStream.URI)) {
+        if(options.filepath.startsWith('../') || options.filepath.startsWith('./')) {
+          options.filepath = path.resolve(options.filepath);
+        }
+
+        options.filepath = IOStream.URI.file(options.filepath);
+      }
+
+      ensureDirSync(path.dirname(options.filepath.toFileSystemPath()));
+
+      const stat = filesystem.existsSync(options.filepath.toFileSystemPath()) ?
+        filesystem.statSync(options.filepath.toFileSystemPath()) : null;
+
+      if(options.maxFileSize) {
+        assert(typeof options.maxFileSize === 'number' && Number.isInteger(options.maxFileSize) && options.maxFileSize > 0);
+      }
+
+      this.#state = {
+        eol: options.eol || '\n',
+        disposed: false,
+        level: options.level || LOG_LEVEL.LOG,
+        fileLocation: options.filepath,
+        byteLength: stat?.size || 0,
+        pendingBytes: 0,
+        maxFileSize: options.maxFileSize,
+        ioState: 'idle',
+        silenceErrors: typeof options.silent === 'boolean' ? options.silent : true,
+      };
+
+      this.#onIdle = new Set();
+      this.#pendingWriteEntries = [];
+      this.#onError = options.onError;
+    }
+
+    public get file(): IOStream.URI {
+      return this.#state.fileLocation;
+    }
+
+    public get filename(): string {
+      return _modules().path.basename(this.#state.fileLocation.toFileSystemPath());
+    }
+
+    public get byteLength(): number {
+      return this.#state.byteLength;
+    }
+
+    public get maxFileSize(): number | null {
+      return this.#state.maxFileSize || null;
+    }
+
+    public get level(): LOG_LEVEL {
+      return this.#state.level;
+    }
+
+    public get status(): FileTransporterState['ioState'] {
+      return this.#state.ioState.slice(0) as any;
+    }
+
+    public whenIdle(): Promise<void> {
+      if(this.#state.ioState === 'idle' && this.#pendingWriteEntries.length === 0) return Promise.resolve();
+
+      return new Promise(resolve => {
+        const fn = () => {
+          if(this.#pendingWriteEntries.length > 0) return;
+          resolve();
+        };
+
+        this.#onIdle?.add(fn);
+      });
+    }
+
+    public acceptEntry(entry: LogEntry & { plainTextMessage: string; }): void {
+      if(this.#state.disposed) {
+        throw new Exception('FileTransporter is already disposed', 'ERR_RESOURCE_DISPOSED');
+      }
+
+      this.#pendingWriteEntries.push(entry);
+      this.#state.pendingBytes += Buffer.byteLength(`${entry.plainTextMessage.trim()}${this.#state.eol}`);
+
+      EventLoop.schedule(() => this.#process());
+    }
+
+    public dispose(): void {
+      if(this.#state.disposed) return;
+
+      this.#onIdle?.clear();
+      this.#state.ioState = 'disposed';
+      this.#pendingWriteEntries.length = 0;
+
+      if(this.#state.pendingBytes > 0) {
+        console.warn('[WARNING] [logger:FileTransporter] You\'re disposing the disk writer before write all changed rows');
+      }
+
+      this.#state.disposed = true;
+    }
+
+    async #process(): Promise<void> {
+      if(this.#state.disposed) {
+        throw new Exception('FileTransporter is already disposed', 'ERR_RESOURCE_DISPOSED');
+      }
+
+      if(this.#state.ioState !== 'idle' && this.#state.ioState !== 'busy') {
+        throw new Exception(`Cannot write files with I/O '${this.#state.ioState}'`, 'ERR_UNSUPPORTED_OPERATION');
+      }
+
+      if(this.#state.ioState !== 'idle') return;
+
+      for(const callback of this.#onIdle?.values() || []) {
+        try {
+          callback();
+        } catch { continue; }
+      }
+
+      if(this.#pendingWriteEntries.length === 0) return;
+
+      this.#state.ioState = 'busy';
+      const entry = this.#pendingWriteEntries.shift();
+
+      if(!entry) return void (this.#state.ioState = 'idle');
+
+      const row = Buffer.from(`${entry.plainTextMessage.trim()}${this.#state.eol}`);
+      const filePath = this.#state.fileLocation.toFileSystemPath();
+
+      const { filesystem } = _modules();
+    
+      // Check if the file exceeds the maximum file size (if defined)
+      if(this.#state.maxFileSize) {
+        try {
+          const stats = await filesystem.promises.stat(filePath);
+
+          if(stats.size >= this.#state.maxFileSize) {
+            const newPath = `${filePath}.${Date.now()}.log`;
+
+            await filesystem.promises.rename(filePath, newPath); // Archive the current file
+            await filesystem.promises.writeFile(filePath, '');
+
+            this.#state.byteLength = 0;
+          }
+        } catch (error: any) {
+          if(error.code !== 'ENOENT') { // Ignore if file doesn't exist
+            const err = new Exception(`Error while checking file size: ${error.message}`, 'ERR_UNKNOWN_ERROR');
+
+            this.#onError?.(err);
+            this.#state.ioState = 'error';
+
+            if(this.#state.silenceErrors === false) {
+              throw err;
+            }
+          }
+        }
+      }
+
+      if(this.#state.ioState === 'error') return;
+
+      try {
+        await filesystem.promises.appendFile(filePath, row);
+
+        this.#state.pendingBytes -= row.byteLength;
+        this.#state.byteLength += row.byteLength;
+
+        this.#state.ioState = 'idle';
+
+        await delay(500);
+        EventLoop.schedule(() => this.#process());
+      } catch (err: any) {
+        let e = err;
+
+        if(!(err instanceof Exception)) {
+          e = new Exception(err?.message || String(err) || 'An unknown error was occured while writing log to the disk', 'ERR_UNKNOWN_ERROR');
+        }
+
+        this.#onError?.(e);
+        this.#state.ioState = 'error';
+
+        if(this.#state.silenceErrors === false) {
+          throw e;
+        }
+      }
+    }
+  }
+
+  export function ensureTransportersIdleBeforeExit(logger: TelemetryLogger): void {
+    process.on('beforeExit', async () => {
+      const transporters = logger.transporters;
+      logger.removeAllTransporters();
+
+      logger.trace('[NodeJS] process exit was called. Waiting to write pending logs...');
+
+      const result = await Span.fromAsync(async () => {
+        for(const transporter of transporters) {
+          if(typeof transporter.whenIdle === 'function') {
+            await transporter.whenIdle();
+          }
+
+          await delay(375);
+        }
+      }, 'logger_transporters.when_idle', {
+        useHighResolutionClock: true,
+        description: 'Measure the time waiting to all logger transporter to be into IDLE state',
+      });
+
+      logger.trace('[NodeJS] all log transporters closed in %d milliseconds', undefined, result.duration);
+    });
+  }
+
+  /* eslint-enable no-inner-declarations */
 }
 
 

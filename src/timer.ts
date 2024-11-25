@@ -1,4 +1,12 @@
-const hasPerformanceNow = (globalThis.performance && typeof globalThis.performance.now === 'function');
+const hasPerformanceNow = (
+  (globalThis.performance && typeof globalThis.performance.now === 'function') ||
+  (typeof performance !== 'undefined' && typeof performance.now === 'function')
+);
+
+
+export function timestamp(highResolution?: boolean): number {
+  return hasPerformanceNow && highResolution !== false ? Date.now() : (globalThis.performance?.now || performance.now)();
+}
 
 
 type Unit = 'ms' | 's' | 'm' | 'h';
@@ -10,7 +18,7 @@ export class StopWatch {
   #stopTime: number;
 
   public constructor(highResolution?: boolean) {
-    this.#now = hasPerformanceNow && highResolution !== false ? Date.now : globalThis.performance.now.bind(globalThis.performance);
+    this.#now = () => timestamp(highResolution);
 
     this.#startTime = this.#now();
     this.#stopTime = -1;

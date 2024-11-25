@@ -5,4 +5,7 @@ export {
   LoggerTransporter,
   TelemetryInit,
   TelemetryLogger,
+  NodeJSLoggerEnvironment,
 } from './logger';
+
+export * from './metrics';
