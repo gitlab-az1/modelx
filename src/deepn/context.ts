@@ -1,6 +1,7 @@
 import type { CpuInfo, NetworkInterfaceInfo } from 'os';
 
 import type { Dict } from '../types';
+import { setLastError } from '../environment';
 import { Exception } from '../@internals/errors';
 import { constant, getvar, variable } from './kernel/vars';
 import { asizeof, DeepAbstractArray } from './kernel/array';
@@ -71,7 +72,7 @@ export function operatingSystem(): OSContext {
     });
   } catch (err: any) {
     console.error(err);
-    throw new Exception('Failed to fetch operating system informations from your machine', 'ERR_UNSUPPORTED_OPERATION');
+    throw setLastError(new Exception('Failed to fetch operating system informations from your machine', 'ERR_UNSUPPORTED_OPERATION'));
   }
 }
 

@@ -43,7 +43,7 @@ function props<T extends object>(obj: T): string[] {
 
 function _objectSizeof(seen: Set<any> | WeakSet<any>, obj: any): number {
   if(typeof obj !== 'object') {
-    throw new Exception(`Cannot calculate sizeof 'typeof ${typeof obj}' in object size calculator`, 'ERR_UNSUPPORTED_OPERATION');
+    throw setLastError(new Exception(`Cannot calculate sizeof 'typeof ${typeof obj}' in object size calculator`, 'ERR_UNSUPPORTED_OPERATION'));
   }
 
   if(obj === null) return PRIMITIVE_BYTE_SIZE.NULL;

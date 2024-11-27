@@ -1,6 +1,7 @@
 import { Exception } from './errors';
 import { type IDisposable } from './disposable';
 import type { MaybePromise } from '../@internals/types';
+import { setLastError } from 'src/environment';
 
 
 export interface IResult<TReturn> {
@@ -25,7 +26,7 @@ export abstract class AbstractIterator<T> {
   public off(listener: (() => void) | '*'): void {
     if(typeof listener === 'string') {
       if(listener !== '*') {
-        throw new Exception(`Unexpected token '${listener}' as '_ondone' listener of iterator`, 'ERR_INVALID_ARGUMENT');
+        throw setLastError(new Exception(`Unexpected token '${listener}' as '_ondone' listener of iterator`, 'ERR_INVALID_ARGUMENT'));
       }
 
       this.__ondone.clear();
@@ -69,7 +70,7 @@ export class LazyIterator<T> extends AbstractIterator<T> implements IDisposable 
 
   public next(): IResult<T> {
     if(this.#cursor === -1) {
-      throw new Exception('This iterator has been disposed', 'ERR_RESOURCE_DISPOSED');
+      throw setLastError(new Exception('This iterator has been disposed', 'ERR_RESOURCE_DISPOSED'));
     }
 
     if(this.#cursor + 1 >= this.#collection.length) return { done: true, value: null };
@@ -78,7 +79,7 @@ export class LazyIterator<T> extends AbstractIterator<T> implements IDisposable 
 
   public prev(): IResult<T> | null {
     if(this.#cursor === -1) {
-      throw new Exception('This iterator has been disposed', 'ERR_RESOURCE_DISPOSED');
+      throw setLastError(new Exception('This iterator has been disposed', 'ERR_RESOURCE_DISPOSED'));
     }
 
     if(this.#cursor - 1 < 0) return null;
@@ -87,7 +88,7 @@ export class LazyIterator<T> extends AbstractIterator<T> implements IDisposable 
 
   public seekToFirst(): void {
     if(this.#cursor === -1) {
-      throw new Exception('This iterator has been disposed', 'ERR_RESOURCE_DISPOSED');
+      throw setLastError(new Exception('This iterator has been disposed', 'ERR_RESOURCE_DISPOSED'));
     }
 
     this.#cursor = 0;
@@ -95,7 +96,7 @@ export class LazyIterator<T> extends AbstractIterator<T> implements IDisposable 
 
   public seekToLast(): void {
     if(this.#cursor === -1) {
-      throw new Exception('This iterator has been disposed', 'ERR_RESOURCE_DISPOSED');
+      throw setLastError(new Exception('This iterator has been disposed', 'ERR_RESOURCE_DISPOSED'));
     }
 
     this.#cursor = this.#collection.length - 1;
@@ -103,7 +104,7 @@ export class LazyIterator<T> extends AbstractIterator<T> implements IDisposable 
 
   public seek(index: number): IResult<T> | null {
     if(this.#cursor === -1) {
-      throw new Exception('This iterator has been disposed', 'ERR_RESOURCE_DISPOSED');
+      throw setLastError(new Exception('This iterator has been disposed', 'ERR_RESOURCE_DISPOSED'));
     }
 
     if(index < 0 || index >= this.#collection.length) return null;
@@ -114,7 +115,7 @@ export class LazyIterator<T> extends AbstractIterator<T> implements IDisposable 
 
   public clone(): LazyIterator<T> {
     if(this.#cursor === -1) {
-      throw new Exception('This iterator has been disposed', 'ERR_RESOURCE_DISPOSED');
+      throw setLastError(new Exception('This iterator has been disposed', 'ERR_RESOURCE_DISPOSED'));
     }
 
     const cloned = new LazyIterator([...this.#collection]);
@@ -132,7 +133,7 @@ export class LazyIterator<T> extends AbstractIterator<T> implements IDisposable 
 
   public *[Symbol.iterator](): IterableIterator<T> {
     if(this.#cursor === -1) {
-      throw new Exception('This iterator has been disposed', 'ERR_RESOURCE_DISPOSED');
+      throw setLastError(new Exception('This iterator has been disposed', 'ERR_RESOURCE_DISPOSED'));
     }
 
     for(let i = this.#cursor + 1; i < this.#collection.length; i++) {

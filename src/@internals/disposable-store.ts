@@ -10,6 +10,7 @@ import { IDisposable } from '@ts-overflow/node-framework/disposable';
 
 import { Stacktrace } from './errors';
 import { isDisposable } from './disposable';
+import { setLastError } from '../environment';
 
 
 /**
@@ -64,7 +65,7 @@ export class DisposableStore implements IDisposable {
     if(!o) return o;
 
     if((o as unknown as DisposableStore) === this) {
-      throw new Error('Cannot register a disposable on itself!');
+      throw setLastError(new Error('Cannot register a disposable on itself!'));
     }
 
     if(this._isDisposed) {
@@ -86,7 +87,7 @@ export class DisposableStore implements IDisposable {
     if(!o) return;
     
     if((o as unknown as DisposableStore) === this) {
-      throw new Error('Cannot dispose a disposable on itself!');
+      throw setLastError(new Error('Cannot dispose a disposable on itself!'));
     }
 
     this._toDispose.delete(o);
@@ -181,7 +182,7 @@ export function dispose<T extends IDisposable>(arg: T | Iterable<T> | undefined)
     if(errors.length === 1) {
       throw errors[0];
     } else if (errors.length > 1) {
-      throw new AggregateError(errors, 'Encountered errors while disposing of store');
+      throw setLastError(new AggregateError(errors, 'Encountered errors while disposing of store'));
     }
 
     return Array.isArray(arg) ? [] : arg;

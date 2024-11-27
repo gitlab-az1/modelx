@@ -1,6 +1,7 @@
 import { EventLoop } from '@ts-overflow/async/event-loop';
 
 import { ensureDirSync } from '../../fs';
+import { setLastError } from '../../environment';
 import { Exception } from '../../@internals/errors';
 import { jsonSafeStringify } from '../../@internals/json';
 import { colorizeLevel, formatStringTemplate, Message, MessageStream, type MessageStreamOptions, removeNonASCIICharacters, stringifyLevel } from './core';
@@ -52,7 +53,7 @@ export class File extends MessageStream {
     super(options);
 
     if(!(this._nfs = __$__nfs())) {
-      throw new Exception('Failed to access filesystem handler in current environment', 'ERR_UNSUPPORTED_OPERATION');
+      throw setLastError(new Exception('Failed to access filesystem handler in current environment', 'ERR_UNSUPPORTED_OPERATION'));
     }
 
     this._npath = __$__npath();

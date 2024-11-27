@@ -1,3 +1,4 @@
+import { setLastError } from '../../environment';
 import { Exception } from '../../@internals/errors';
 import type { LooseAutocomplete } from '../../types';
 import { type Option, optionalDefined } from '../../option';
@@ -91,50 +92,54 @@ class VariablesSet {
   public declare<T>(v: Variable<T>): VarHandler<T>;
   public declare<T>(name: string, kind: 'var' | 'const', value: T | null | undefined, type?: VariableType): VarHandler<T>;
   public declare<T>(variableOrName: Variable<T> | string, kind?: 'var' | 'const', value?: T | null | undefined, type?: VariableType): VarHandler<T> {
-    let obj: Variable<T> | null = null;
+    try {
+      let obj: Variable<T> | null = null;
 
-    if(typeof variableOrName === 'string') {
-      if(!kind) {
-        throw new Exception('You must enter the kind of variable to declare', 'ERR_INVALID_ARGUMENT');
+      if(typeof variableOrName === 'string') {
+        if(!kind) {
+          throw new Exception('You must enter the kind of variable to declare', 'ERR_INVALID_ARGUMENT');
+        }
+
+        if(!['var', 'const'].includes(kind)) {
+          throw new Exception(`Unknown variable kind '${kind}'`, 'ERR_INVALID_TYPE');
+        }
+
+        if(this[$setMap].has(variableOrName)) {
+          throw new Exception(`Cannot redeclare variable '${variableOrName}'`, 'ERR_KERNEL_VAR_ALREADY_DECLARED');
+        }
+
+        if(typeof value === 'undefined' && !type) {
+          throw new Exception(`Failed to determinate variable type for '${variableOrName}'`, 'ERR_UNKNOWN_VAR_TYPE');
+        }
+
+        if(!!type && type !== this.#getVariableType(value)) {
+          type = this.#getVariableType(value);
+        }
+
+        this[$setMap].set(variableOrName, {
+          __environmentBrand: 'deepn-kernel',
+          name: variableOrName,
+          kind: kind === 'const' ? VariableKind.Constant : VariableKind.Variable,
+          type: type || this.#getVariableType(value),
+          value,
+        });
+
+        obj = this[$setMap].get(variableOrName)!;
+      } else {
+        assertVariableObject(variableOrName);
+
+        if(this[$setMap].has(variableOrName.name)) {
+          throw new Exception(`Cannot redeclare variable '${variableOrName.name}'`, 'ERR_KERNEL_VAR_ALREADY_DECLARED');
+        }
+
+        this[$setMap].set(variableOrName.name, variableOrName);
+        obj = variableOrName;
       }
 
-      if(!['var', 'const'].includes(kind)) {
-        throw new Exception(`Unknown variable kind '${kind}'`, 'ERR_INVALID_TYPE');
-      }
-
-      if(this[$setMap].has(variableOrName)) {
-        throw new Exception(`Cannot redeclare variable '${variableOrName}'`, 'ERR_KERNEL_VAR_ALREADY_DECLARED');
-      }
-
-      if(typeof value === 'undefined' && !type) {
-        throw new Exception(`Failed to determinate variable type for '${variableOrName}'`, 'ERR_UNKNOWN_VAR_TYPE');
-      }
-
-      if(!!type && type !== this.#getVariableType(value)) {
-        type = this.#getVariableType(value);
-      }
-
-      this[$setMap].set(variableOrName, {
-        __environmentBrand: 'deepn-kernel',
-        name: variableOrName,
-        kind: kind === 'const' ? VariableKind.Constant : VariableKind.Variable,
-        type: type || this.#getVariableType(value),
-        value,
-      });
-
-      obj = this[$setMap].get(variableOrName)!;
-    } else {
-      assertVariableObject(variableOrName);
-
-      if(this[$setMap].has(variableOrName.name)) {
-        throw new Exception(`Cannot redeclare variable '${variableOrName.name}'`, 'ERR_KERNEL_VAR_ALREADY_DECLARED');
-      }
-
-      this[$setMap].set(variableOrName.name, variableOrName);
-      obj = variableOrName;
+      return new VarHandler({ ...obj });
+    } catch (err: any) {
+      throw setLastError(err);
     }
-
-    return new VarHandler({ ...obj });
   }
 
   public describe<T, K extends keyof PresetVariables>(name: LooseAutocomplete<K>): VarHandler<T> {
@@ -142,7 +147,7 @@ class VariablesSet {
     const v = this[$setMap].get(name);
 
     if(!v) {
-      throw new Exception(`Variable '${name}' is not defined`, 'ERR_KERNEL_VAR_NOT_DECLARED');
+      throw setLastError(new Exception(`Variable '${name}' is not defined`, 'ERR_KERNEL_VAR_NOT_DECLARED'));
     }
 
     return new VarHandler({ ...v });
@@ -153,11 +158,11 @@ class VariablesSet {
     const v = this[$setMap].get(name);
 
     if(!v) {
-      throw new Exception(`Variable '${name}' is not defined`, 'ERR_KERNEL_VAR_NOT_DECLARED');
+      throw setLastError(new Exception(`Variable '${name}' is not defined`, 'ERR_KERNEL_VAR_NOT_DECLARED'));
     }
 
     if(v.kind === VariableKind.Constant) {
-      throw new Exception(`Cannot assign a constant variable '${name}'`, 'ERR_ASSIGN_CONSTANT');
+      throw setLastError(new Exception(`Cannot assign a constant variable '${name}'`, 'ERR_ASSIGN_CONSTANT'));
     }
 
     Object.assign(v, { value });
@@ -168,7 +173,7 @@ class VariablesSet {
     const v = this[$setMap].get(name);
 
     if(!v) {
-      throw new Exception(`Variable '${name}' is not defined`, 'ERR_KERNEL_VAR_NOT_DECLARED');
+      throw setLastError(new Exception(`Variable '${name}' is not defined`, 'ERR_KERNEL_VAR_NOT_DECLARED'));
     }
 
     return v.value;
@@ -198,7 +203,7 @@ class VariablesSet {
       case 'boolean':
         return VariableType.Bool;
       default:
-        throw new Exception('Failed to determinate variable type', 'ERR_UNKNOWN_VAR_TYPE');
+        throw setLastError(new Exception('Failed to determinate variable type', 'ERR_UNKNOWN_VAR_TYPE'));
     }
   }
 }
@@ -232,7 +237,7 @@ class VarHandler<T> {
 
 function assertVariableObject<T>(arg: unknown): asserts arg is Variable<T> {
   if(!arg || typeof arg !== 'object' || Array.isArray(arg)) {
-    throw new Exception(`Cannot assert 'typeof ${typeof arg}' as 'typeof Variable<unknown>'`, 'ERR_ASSERTATION_FAILED');
+    throw setLastError(new Exception(`Cannot assert 'typeof ${typeof arg}' as 'typeof Variable<unknown>'`, 'ERR_ASSERTATION_FAILED'));
   }
 
   const candidate = (<Variable<T>>arg);
@@ -247,7 +252,7 @@ function assertVariableObject<T>(arg: unknown): asserts arg is Variable<T> {
   );
 
   if(!is) {
-    throw new Exception(`Cannot assert 'typeof ${typeof arg}' as 'typeof Variable<unknown>'`, 'ERR_ASSERTATION_FAILED');
+    throw setLastError(new Exception(`Cannot assert 'typeof ${typeof arg}' as 'typeof Variable<unknown>'`, 'ERR_ASSERTATION_FAILED'));
   }
 }
 

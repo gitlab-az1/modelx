@@ -1,6 +1,7 @@
 import * as nodec from 'node:crypto';
 import { AES, SymmetricKey } from 'cryptx-sdk/symmetric';
 
+import { setLastError } from '../environment';
 import { Exception } from '../@internals/errors';
 import { jsonSafeParser } from '../@internals/json';
 
@@ -70,7 +71,7 @@ export namespace hardwareAcceleredCiphers {
         const parsed = jsonSafeParser<T>(dec.toString('utf-8'));
 
         if(parsed.isLeft()) {
-          throw parsed.value;
+          throw setLastError(parsed.value);
         }
 
         output = {
@@ -102,7 +103,7 @@ export namespace hardwareAcceleredCiphers {
 
 async function _encryptWithHmac(algorithm: keyof typeof hardwareAcceleredCiphers.algorithms, key: Buffer, content: any, encoding?: BufferEncoding): Promise<Buffer | string> {
   if(!['xaes_gcm_hmac_256', 'xaes_cbc_hmac_256'].includes(algorithm)) {
-    throw new Exception(`Cannot create '${algorithm}' cipher`, 'ERR_CRYPTO_INVALID_ALGORITHM');
+    throw setLastError(new Exception(`Cannot create '${algorithm}' cipher`, 'ERR_CRYPTO_INVALID_ALGORITHM'));
   }
 
   const k = new SymmetricKey(key, {
@@ -147,7 +148,7 @@ async function _decryptWithHmac(input: Buffer, skey: Buffer, encoding?: BufferEn
   const algorithm = input.readUint8(0);
 
   if(!['xaes_gcm_hmac_256', 'xaes_cbc_hmac_256'].includes(hardwareAcceleredCiphers.algorithms[algorithm])) {
-    throw new Exception(`Cannot create '${algorithm}' cipher`, 'ERR_CRYPTO_INVALID_ALGORITHM');
+    throw setLastError(new Exception(`Cannot create '${algorithm}' cipher`, 'ERR_CRYPTO_INVALID_ALGORITHM'));
   }
 
   const k = new SymmetricKey(skey, {
@@ -166,7 +167,7 @@ function _decryptWithoutHmac(input: Buffer, skey: Buffer, encoding?: BufferEncod
   const algorithm = input.readUint8(0);
 
   if(['xaes_gcm_hmac_256', 'xaes_cbc_hmac_256'].includes(hardwareAcceleredCiphers.algorithms[algorithm])) {
-    throw new Exception(`Cannot create '${algorithm}' cipher`, 'ERR_CRYPTO_INVALID_ALGORITHM');
+    throw setLastError(new Exception(`Cannot create '${algorithm}' cipher`, 'ERR_CRYPTO_INVALID_ALGORITHM'));
   }
 
   const { iv, key, authTag } = _consumeKey(hardwareAcceleredCiphers.algorithms[algorithm] as unknown as hardwareAcceleredCiphers.algorithms, skey);
@@ -199,7 +200,7 @@ function _getNodeAlgorithm(alg: keyof typeof hardwareAcceleredCiphers.algorithms
     case hardwareAcceleredCiphers.algorithms.aes_gcm_256:
       return 'aes-256-gcm';
     default:
-      throw new Exception(`Cannot create '${alg}' cipher`, 'ERR_CRYPTO_INVALID_ALGORITHM');
+      throw setLastError(new Exception(`Cannot create '${alg}' cipher`, 'ERR_CRYPTO_INVALID_ALGORITHM'));
   }
 }
 
@@ -228,13 +229,13 @@ function _consumeKey(algorithm: keyof typeof hardwareAcceleredCiphers.algorithms
   const config = algoMap[algorithm] || enumAlgoMap[algorithm];
 
   if(!config) {
-    throw new Exception(`Cannot create cipher for unknown algorithm '${algorithm}'`, 'ERR_CRYPTO_INVALID_ALGORITHM');
+    throw setLastError(new Exception(`Cannot create cipher for unknown algorithm '${algorithm}'`, 'ERR_CRYPTO_INVALID_ALGORITHM'));
   }
 
   const requiredLen = config.keyLen + config.ivLen + (config.authTagLen || 0);
 
   if(superkey.byteLength < requiredLen) {
-    throw new Exception(`The provided key is too short for '${algorithm}', expected at least ${requiredLen} bytes`, 'ERR_CRYPTO_SHORT_KEY');
+    throw setLastError(new Exception(`The provided key is too short for '${algorithm}', expected at least ${requiredLen} bytes`, 'ERR_CRYPTO_SHORT_KEY'));
   }
 
   const iv = superkey.subarray(0, config.ivLen);

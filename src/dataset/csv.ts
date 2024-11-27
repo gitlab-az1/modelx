@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 
 import { readBinary } from '../fs';
+import { setLastError } from '../environment';
 import { buffer } from '../@internals/buffer';
 import { Exception } from '../@internals/errors';
 import type { BinaryHolder, MaybeArray, Interval } from '../@internals/types';
@@ -108,11 +109,11 @@ export async function read_csv<T>(filepath: string | URL, options?: CSVParserOpt
     filepath.startsWith('ftps://') ||
     filepath.startsWith('sftp://')
   ) {
-    throw new Exception('Read csv files over network is not supported yet.', 'ERR_UNSUPPORTED_OPERATION');
+    throw setLastError(new Exception('Read csv files over network is not supported yet.', 'ERR_UNSUPPORTED_OPERATION'));
   }
 
   if(!fs.existsSync(filepath)) {
-    throw new Exception(`Could not found file '${filepath}'`, 'ERR_FILE_NOT_FOUND');
+    throw setLastError(new Exception(`Could not found file '${filepath}'`, 'ERR_FILE_NOT_FOUND'));
   }
 
   const buffer = await (options?.mask ? readBinary(filepath, options.mask) : fs.promises.readFile(filepath));

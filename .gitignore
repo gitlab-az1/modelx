@@ -143,3 +143,5 @@ yarn*
 npm-publish.sh
 
 _*.dhl
+
+**/*.ignore.ts

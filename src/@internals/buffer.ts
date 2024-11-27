@@ -6,6 +6,7 @@ import * as streams from '../stream';
 import { Exception } from './errors';
 import { assertString } from './util';
 import { listenStream } from '../stream';
+import { setLastError } from '../environment';
 import { ICancellationToken } from '../cancellation';
 import type { BinaryHolder, LooseAutocomplete } from './types';
 
@@ -147,7 +148,7 @@ export class ChunkStream<TEvents extends Record<string, any> = ChunkStreamDefaul
         // eslint-disable-next-line no-empty
       } catch { }
 
-      throw err;
+      throw setLastError(err);
     }
 
     this[$chunks].push(buffer);
@@ -173,7 +174,7 @@ export class ChunkStream<TEvents extends Record<string, any> = ChunkStreamDefaul
         // eslint-disable-next-line no-empty
       } catch { }
       
-      throw err;
+      throw setLastError(err);
     }
 
     this[$finish] = true;
@@ -195,7 +196,7 @@ export class ChunkStream<TEvents extends Record<string, any> = ChunkStreamDefaul
         // eslint-disable-next-line no-empty
       } catch { }
 
-      throw err;
+      throw setLastError(err);
     }
 
     return Buffer.concat(this[$chunks]);
@@ -214,7 +215,7 @@ export class ChunkStream<TEvents extends Record<string, any> = ChunkStreamDefaul
         // eslint-disable-next-line no-empty
       } catch { }
 
-      throw err;
+      throw setLastError(err);
     }
 
     return [ ...this[$chunks] ];
@@ -233,7 +234,7 @@ export class ChunkStream<TEvents extends Record<string, any> = ChunkStreamDefaul
         // eslint-disable-next-line no-empty
       } catch { }
 
-      throw err;
+      throw setLastError(err);
     }
 
     listenStream(source, {
@@ -245,7 +246,7 @@ export class ChunkStream<TEvents extends Record<string, any> = ChunkStreamDefaul
           this.emit('error', e);
         }
       },
-      onError: err => void this.emit('error', err),
+      onError: err => void this.emit('error', setLastError(err)),
     }, token);
   }
 
@@ -296,7 +297,7 @@ export class ChunkStream<TEvents extends Record<string, any> = ChunkStreamDefaul
         // eslint-disable-next-line no-empty
       } catch { }
 
-      throw err;
+      throw setLastError(err);
     }
 
     let output: Buffer;

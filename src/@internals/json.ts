@@ -1,4 +1,5 @@
 import { isPlainObject } from './util';
+import { setLastError } from '../environment';
 import { type Either, left, right } from './either';
 
 
@@ -54,6 +55,7 @@ export function jsonSafeStringify<T>(data: T, replacer?: ((this: any, key: strin
     const safeData = Array.isArray(data) ? _replaceArrayCirculars(data) : _replaceObjectCirculars(data);
     return JSON.stringify(safeData, replacer as unknown as any, space);
   } catch (err: any) {
+    setLastError(err);
     console.warn(err);
     return null;
   }

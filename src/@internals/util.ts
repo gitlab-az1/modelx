@@ -54,7 +54,7 @@ export function assert(condition: boolean | number | (() => number | boolean), m
       const result = condition();
   
       if(isThenable(result)) {
-        throw new Exception(`Cannot assert an asynchronous result of 'typeof ${result.toString()}'`, 'ERR_UNEXPECTED_PROMISE');
+        throw setLastError(new Exception(`Cannot assert an asynchronous result of 'typeof ${result.toString()}'`, 'ERR_UNEXPECTED_PROMISE'));
       }
   
       switch(typeof result) {
