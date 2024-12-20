@@ -40,6 +40,8 @@ export const enum ERROR_CODE {
   ERR_UNEXPECTED_TOKEN = 1034,
   ERR_CRYPTO_SHORT_KEY = 1035,
   ERR_MAGIC_NUMBER_MISSMATCH = 1036,
+  ERR_INVALID_PROCESS_CMD = 1037,
+  ERR_RESOURCE_ALREADY_INITIALIZED = 1038,
   ERR_UNKNOWN_ERROR = 2001,
 }
 
@@ -124,6 +126,10 @@ export function stringToErrno(code: keyof typeof ERROR_CODE): number {
       return ERROR_CODE.ERR_CRYPTO_SHORT_KEY;
     case 'ERR_MAGIC_NUMBER_MISSMATCH':
       return ERROR_CODE.ERR_MAGIC_NUMBER_MISSMATCH;
+    case 'ERR_INVALID_PROCESS_CMD':
+      return ERROR_CODE.ERR_INVALID_PROCESS_CMD;
+    case 'ERR_RESOURCE_ALREADY_INITIALIZED':
+      return ERROR_CODE.ERR_RESOURCE_ALREADY_INITIALIZED;
     default:
       return -1;
   }
@@ -209,6 +215,10 @@ export function errorCodeToString(code: number): string {
       return 'ERR_CRYPTO_SHORT_KEY';
     case ERROR_CODE.ERR_MAGIC_NUMBER_MISSMATCH:
       return 'ERR_MAGIC_NUMBER_MISSMATCH';
+    case ERROR_CODE.ERR_INVALID_PROCESS_CMD:
+      return 'ERR_INVALID_PROCESS_CMD';
+    case ERROR_CODE.ERR_RESOURCE_ALREADY_INITIALIZED:
+      return 'ERR_RESOURCE_ALREADY_INITIALIZED';
     default:
       return 'Unknown error';
   }
@@ -236,6 +246,7 @@ export class Exception extends Error {
   public readonly stackTrace: Stacktrace;
   public readonly code: number;
   public readonly context?: Dict<any>;
+  public readonly description: string;
 
   public constructor(message: string, code: keyof typeof ERROR_CODE | number, contextObject?: Dict<unknown>) {
     super(message);
@@ -244,10 +255,59 @@ export class Exception extends Error {
     this.stackTrace = Stacktrace.create();
 
     this.context = contextObject;
-    this.code = typeof code === 'number' ? -Math.abs(code) : -stringToErrno(code);
+    this.code = typeof code === 'number' ? code : stringToErrno(code);
+    this.description = getErrorDescription(this.code);
 
-    if(Math.abs(this.code) === 0) {
-      this.code = 0;
+    if(this.code > 0) {
+      this.code = -this.code;
     }
   }
+}
+
+
+export function getErrorDescription(code: number): string {
+  const errorDescriptions: { [key: number]: string | undefined } = {
+    [ERROR_CODE.DONE]: 'Operation completed successfully.',
+    [ERROR_CODE.ERR_STREAM_BUFFER_OVERFLOW]: 'Stream buffer overflow encountered.',
+    [ERROR_CODE.ERR_END_OF_STREAM]: 'End of stream reached unexpectedly.',
+    [ERROR_CODE.ERR_STREAM_BUFFER_UNDERFLOW]: 'Stream buffer underflow occurred.',
+    [ERROR_CODE.ERR_STREAM_INVALID_CHUNK]: 'Invalid chunk detected in stream.',
+    [ERROR_CODE.ERR_UNSUPPORTED_OPERATION]: 'The requested operation is not supported.',
+    [ERROR_CODE.ERR_INVALID_ARGUMENT]: 'An invalid argument was provided.',
+    [ERROR_CODE.ERR_INVALID_COMPRESSION_ALGORITHM]: 'Unsupported compression algorithm specified.',
+    [ERROR_CODE.ERR_OUT_OF_RANGE]: 'Value is out of the acceptable range.',
+    [ERROR_CODE.ERR_INVALID_TYPE]: 'Invalid data type encountered.',
+    [ERROR_CODE.ERR_INVALID_ALGORITHM]: 'Invalid algorithm specified.',
+    [ERROR_CODE.ERR_INVALID_AUTH_TAG]: 'Authentication tag is invalid.',
+    [ERROR_CODE.ERR_OUT_OF_BOUNDS]: 'Index is out of bounds.',
+    [ERROR_CODE.ERR_STREAM_DISPOSED]: 'Operation attempted on a disposed stream.',
+    [ERROR_CODE.ERR_INVALID_IV_LENGTH]: 'The provided IV length is incorrect.',
+    [ERROR_CODE.ERR_CRYPTO_INVALID_ALGORITHM]: 'Invalid cryptographic algorithm specified.',
+    [ERROR_CODE.ERR_ENVIRONMENT_VARIABLE_REDECLARATION]: 'Attempted to redeclare an environment variable.',
+    [ERROR_CODE.ERR_UNEXPECTED_PROMISE]: 'An unexpected promise was encountered.',
+    [ERROR_CODE.ERR_RESOURCE_DISPOSED]: 'Resource has already been disposed.',
+    [ERROR_CODE.ERR_ASSERTATION_FAILED]: 'An assertion failed.',
+    [ERROR_CODE.ERR_TOKEN_CANCELLED]: 'Token operation was cancelled.',
+    [ERROR_CODE.ERR_NO_CSPRNG]: 'No cryptographically secure random number generator available.',
+    [ERROR_CODE.ERR_FILE_NOT_FOUND]: 'The specified file was not found.',
+    [ERROR_CODE.ERR_INVALID_SIGNATURE]: 'Invalid digital signature detected.',
+    [ERROR_CODE.ERR_RESOURCE_LOCKED]: 'Resource is currently locked.',
+    [ERROR_CODE.ERR_UNWRAP_NONE]: 'Attempted to unwrap a non-existent value.',
+    [ERROR_CODE.ERR_DATABASE_ERROR]: 'An error occurred in the database.',
+    [ERROR_CODE.ERR_MISSING_ENVIRONMENT_KEY]: 'A required environment key is missing.',
+    [ERROR_CODE.ERR_STREAM_PROCESSING_FAILURE]: 'An error occurred while processing the stream.',
+    [ERROR_CODE.ERR_KERNEL_VAR_ALREADY_DECLARED]: 'Kernel variable has already been declared.',
+    [ERROR_CODE.ERR_KERNEL_VAR_NOT_DECLARED]: 'Kernel variable is not declared.',
+    [ERROR_CODE.ERR_UNKNOWN_VAR_TYPE]: 'The variable type is unknown.',
+    [ERROR_CODE.ERR_ASSIGN_CONSTANT]: 'Cannot assign a value to a constant variable.',
+    [ERROR_CODE.ERR_MAX_LISTENERS_REACHED]: 'The maximum number of event listeners has been reached.',
+    [ERROR_CODE.ERR_RESOURCE_FORZEN]: 'The resource is frozen and cannot be modified.',
+    [ERROR_CODE.ERR_UNEXPECTED_TOKEN]: 'An unexpected token was encountered in the input.',
+    [ERROR_CODE.ERR_CRYPTO_SHORT_KEY]: 'The cryptographic key is too short.',
+    [ERROR_CODE.ERR_MAGIC_NUMBER_MISSMATCH]: 'Magic number mismatch detected.',
+    [ERROR_CODE.ERR_INVALID_PROCESS_CMD]: 'Invalid process command received.',
+    [ERROR_CODE.ERR_UNKNOWN_ERROR]: 'An unknown error has occurred.',
+  };
+
+  return errorDescriptions[code] ?? 'unknown error';
 }

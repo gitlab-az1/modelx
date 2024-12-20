@@ -1,6 +1,6 @@
 {
   "name": "ndforge",
-  "version": "1.3.5",
+  "version": "1.4.0",
   "main": "index.js",
   "license": "AGPL-3.0-only",
   "repository": "https://github.com/gitlab-az1/modelx.git",
@@ -13,7 +13,7 @@
     "cryptx-sdk": "^1.2.3",
     "jpeg-js": "^0.4.4",
     "next-math": "^1.0.1",
-    "pg": "^8.13.0",
+    "pg": "^8.13.1",
     "typed-config-parser": "^1.1.0",
     "typesdk": "^2.3.4"
   }

@@ -11,6 +11,7 @@ export * from './btree';
 
 export * from './transporters';
 
+export * from './array';
 export * from './matrix';
 
 export * from './object';
