@@ -184,6 +184,7 @@ class PostgresBuilder<T> {
       this.#state.missingComponents.push(`RETURNING ${options.withReturn.join(', ')}`);
     }
 
+    this.#state.operation = QUERY_OPERATION.UPDATE;
     this.#state.query = `UPDATE ${this.#state.table} SET ${queryParts.join(', ')}`;
     this.#state.query = `${this.#state.query.trim()} ${this.#state.missingComponents.join(' ')}`.trim();
 
@@ -212,6 +213,7 @@ class PostgresBuilder<T> {
       this.#state.bindValues.push(new Date().toISOString());
     }
   
+    this.#state.operation = QUERY_OPERATION.UPDATE;
     this.#state.query = `UPDATE ${this.#state.table} SET ${queryParts.join(', ')}`;
   
     if(options?.withReturn === true) {
