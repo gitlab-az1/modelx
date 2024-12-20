@@ -7,6 +7,9 @@ export * as math from './math';
 export * from './telemetry';
 export * as telemetry from './telemetry';
 
+export * from './database';
+export * as database from './database';
+
 export * from './btree';
 
 export * from './transporters';

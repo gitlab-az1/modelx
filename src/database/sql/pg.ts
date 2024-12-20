@@ -642,6 +642,10 @@ class PostgresBuilder<T> {
     return this.#state.query;
   }
 
+  public inspect(): Pair<string, any[]> {
+    return new Pair(this.#state.query.slice(0), this.#state.bindValues.slice(0));
+  }
+
   public async execute<TResult = T>(): Promise<_Result<TResult>> {
     this.#ensureQueryStarted();
 
