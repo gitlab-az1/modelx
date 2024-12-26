@@ -81,6 +81,44 @@ export function unwrapExpect<T>(option: Option<T>, message?: string): T {
 }
 
 
+export abstract class OptionBody<T, TSome extends T> {
+  readonly #option: Option<TSome>;
+
+  public constructor(
+    checker: (value: T) => value is TSome,
+    value: T // eslint-disable-line comma-dangle
+  ) {
+    this.#option = toOptional(checker)(value);
+  }
+
+  public is_some(): this is Some<TSome> {
+    return isSome(this.#option);
+  }
+  
+  public is_none(): this is None {
+    return isNone(this.#option);
+  }
+
+  public unwrap(): TSome {
+    return unwrap(this.#option);
+  }
+
+  public unwrap_or(fallback: TSome): TSome {
+    return unwrapOr(this.#option, fallback);
+  }
+
+  public unwrap_expect(): TSome {
+    return unwrapExpect(this.#option);
+  }
+}
+
+export class OptionDefined<T, TSome extends T = T> extends OptionBody<T, TSome> {
+  public constructor(value: T | null | undefined) {
+    super(((arg: any) => !!arg) as any, value as any);
+  }
+}
+
+
 // eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace option {
   export type None = { [$type]: OptionType.None };
@@ -149,6 +187,13 @@ export namespace option {
     }
 
     return option[$value];
+  }
+
+
+  export class OptionDefined<T, TSome extends T = T> extends OptionBody<T, TSome> {
+    public constructor(value: T | null | undefined) {
+      super(((arg: any) => !!arg) as any, value as any);
+    }
   }
 }
 

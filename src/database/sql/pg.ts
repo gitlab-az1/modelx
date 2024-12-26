@@ -126,7 +126,7 @@ class PostgresBuilder<T> {
       throw new Exception(`Cannot create a SELECT query because this builder is already initialized with ${QUERY_OPERATION[this.#state.operation]}`, 'ERR_UNSUPPORTED_OPERATION');
     }
 
-    this.#state.query = `INSERT INTO ${this.#state.table} (${Object.keys(entries).join(', ')}) VALUES (${Object.keys(entries).map(item => item + 1).map(item => `$${item}`).join(', ')})`;
+    this.#state.query = `INSERT INTO ${this.#state.table} (${Object.keys(entries).join(', ')}) VALUES (${Object.keys(entries).map((_, index) => index + 1).map(item => `$${item}`).join(', ')})`;
     this.#state.bindValues.push(...Object.values(entries));
 
     if(options?.withReturn === true) {
@@ -143,7 +143,7 @@ class PostgresBuilder<T> {
       throw new Exception(`Cannot create a SELECT query because this builder is already initialized with ${QUERY_OPERATION[this.#state.operation]}`, 'ERR_UNSUPPORTED_OPERATION');
     }
 
-    this.#state.query = `INSERT INTO ${this.#state.table} (${Object.keys(entries).join(', ')}) VALUES (${Object.keys(entries).map(item => item + 1).map(item => `$${item}`).join(', ')})`;
+    this.#state.query = `INSERT INTO ${this.#state.table} (${Object.keys(entries).join(', ')}) VALUES (${Object.keys(entries).map((_, index) => index + 1).map(item => `$${item}`).join(', ')})`;
     this.#state.bindValues.push(...Object.values(entries));
 
     if(options?.withReturn === true) {
@@ -639,6 +639,13 @@ class PostgresBuilder<T> {
     return this;
   }
 
+  public clear(): void {
+    this.#state.bindValues = [];
+    this.#state.missingComponents = [];
+    this.#state.operation = null;
+    this.#state.query = '';
+  }
+
   public toString(): string {
     this.#state.query = `${this.#state.query.trim()} ${this.#state.missingComponents.join(' ')}`.trim();
     return this.#state.query;
@@ -760,7 +767,233 @@ class PostgresBuilder<T> {
 }
 
 
-export function createClient<T>(connection: string | ConnectionProps, options?: { ssl?: boolean }): <K extends keyof T>(table: K | Omit<string, K>) => PostgresBuilder<T[K]> {
+type SchemaBuilderState = {
+  operation: QUERY_OPERATION | null;
+  allowExternalAccess: boolean;
+  queries: string[];
+  builder: PostgresBuilder<any>;
+  temp: Map<string, any>;
+}
+
+
+export type FieldOptions = {
+  notNull?: boolean;
+  unique?: boolean;
+  primaryKey?: boolean;
+  check?: string;
+  default?: any;
+};
+
+class PostgresSchemaBuilder {
+  readonly #state: SchemaBuilderState;
+
+  public constructor(
+    _cnp: string | ConnectionProps,
+    _options?: { ssl?: boolean } // eslint-disable-line comma-dangle
+  ) {
+    let datname = '';
+
+    if (typeof _cnp === 'string') {
+      datname = new URL(_cnp).pathname;
+    } else {
+      datname = _cnp.database;
+    }
+
+    this.#state = {
+      allowExternalAccess: false,
+      operation: null,
+      queries: [],
+      builder: new PostgresBuilder(datname, '', _cnp, _options?.ssl),
+      temp: new Map(),
+    };
+  }
+
+  public createTable(tablename: string, _methods: (builder: this) => void): this {
+    if (this.#state.temp.has('create_table')) {
+      throw new Exception('You can only create one table at a time', 'ERR_UNSUPPORTED_OPERATION');
+    }
+
+    this.#state.temp.set('create_table', `CREATE TABLE ${tablename} IF NOT EXISTS (`);
+
+    this.#state.allowExternalAccess = true;
+    _methods(this);
+    this.#state.allowExternalAccess = false;
+
+    this.#state.queries.push(`${(this.#state.temp.get('create_table') as string).trim().replace(/,\s*$/, '')})`);
+    this.#state.temp.delete('create_table');
+
+    return this;
+  }
+
+  public createEnum(typename: string, members: string[]): this {
+    this.#state.queries.push(`CREATE TYPE ${typename} AS ENUM(${members.join(', ')})`);
+    return this;
+  }
+
+  public text(field: string, options?: FieldOptions): this {
+    return this._addField(field, 'TEXT', options);
+  }
+
+  public integer(field: string, options?: FieldOptions): this {
+    return this._addField(field, 'INTEGER', options);
+  }
+
+  public boolean(field: string, options?: FieldOptions): this {
+    return this._addField(field, 'BOOLEAN', options);
+  }
+
+  public date(field: string, options?: FieldOptions): this {
+    return this._addField(field, 'DATE', options);
+  }
+
+  public timestamp(field: string, options?: FieldOptions): this {
+    return this._addField(field, 'TIMESTAMP', options);
+  }
+
+  public array(field: string, elementType: string, options?: FieldOptions): this {
+    return this._addField(field, `${elementType}[]`, options);
+  }
+  
+  public json(field: string, options?: FieldOptions): this {
+    return this._addField(field, 'JSON', options);
+  }
+  
+  public jsonb(field: string, options?: FieldOptions): this {
+    return this._addField(field, 'JSONB', options);
+  }
+  
+  public numeric(field: string, precision?: number, scale?: number, options?: FieldOptions): this {
+    const type = precision !== undefined && scale !== undefined
+      ? `NUMERIC(${precision}, ${scale})`
+      : 'NUMERIC';
+
+    return this._addField(field, type, options);
+  }
+  
+  public char(field: string, length?: number, options?: FieldOptions): this {
+    const type = length !== undefined ? `CHAR(${length})` : 'CHAR';
+    return this._addField(field, type, options);
+  }
+  
+  public varchar(field: string, length?: number, options?: FieldOptions): this {
+    const type = length !== undefined ? `VARCHAR(${length})` : 'VARCHAR';
+    return this._addField(field, type, options);
+  }
+  
+  public float(field: string, options?: FieldOptions): this {
+    return this._addField(field, 'FLOAT', options);
+  }
+  
+  public double(field: string, options?: FieldOptions): this {
+    return this._addField(field, 'DOUBLE PRECISION', options);
+  }
+  
+  public smallint(field: string, options?: FieldOptions): this {
+    return this._addField(field, 'SMALLINT', options);
+  }
+  
+  public bigint(field: string, options?: FieldOptions): this {
+    return this._addField(field, 'BIGINT', options);
+  }
+  
+  public serial(field: string, options?: FieldOptions): this {
+    return this._addField(field, 'SERIAL', options);
+  }
+  
+  public bigserial(field: string, options?: FieldOptions): this {
+    return this._addField(field, 'BIGSERIAL', options);
+  }
+
+  public binary(field: string, options?: FieldOptions): this {
+    return this._addField(field, 'BYTEA', options);
+  }
+  
+  public enum(field: string, enumName: string, options?: FieldOptions): this {
+    return this._addField(field, `${enumName}`, options);
+  }
+  
+  public geography(field: string, type: string, srid: number, options?: FieldOptions): this {
+    return this._addField(field, `GEOGRAPHY(${type}, ${srid})`, options);
+  }
+  
+  public geometry(field: string, type: string, srid: number, options?: FieldOptions): this {
+    return this._addField(field, `GEOMETRY(${type}, ${srid})`, options);
+  }
+  
+  public point(field: string, options?: FieldOptions): this {
+    return this._addField(field, 'POINT', options);
+  }
+
+  public toString(): string {
+    return this.#state.queries.join(';\n\n');
+  }
+
+  public inspect(): string[] {
+    return [...this.#state.queries];
+  }
+
+  private _addField(field: string, type: string, options?: FieldOptions): this {
+    if(!this.#state.allowExternalAccess) {
+      throw new Exception('Cannot access field descriptor tables without access', 'ERR_UNSUPPORTED_OPERATION');
+    }
+
+    let fieldOptions = '';
+
+    if(options?.notNull) {
+      fieldOptions += ' NOT NULL';
+    }
+
+    if(options?.primaryKey) {
+      fieldOptions += ' PRIMARY KEY';
+    }
+
+    if(options?.unique) {
+      fieldOptions += ' UNIQUE';
+    }
+
+    if(options?.check) {
+      fieldOptions += ` CHECK (${options.check})`;
+    }
+
+    if(options?.default !== undefined) {
+      fieldOptions += ` DEFAULT '${options.default}'`;
+    }
+
+    if(this.#state.temp.has('create_table')) {
+      const prev = this.#state.temp.get('create_table') as string;
+      this.#state.temp.set('create_table', `${prev}, ${field} ${type}${fieldOptions}`);
+    }
+
+    return this;
+  }
+
+  public async execute(): Promise<_Result<any>[]> {
+    this.#state.builder.clear();
+    await this.#state.builder.raw('BEGIN').execute();
+
+    try {
+      const results = await Promise.all(
+        this.#state.queries.map((query) => {
+          this.#state.builder.clear();
+          return this.#state.builder.raw(query).execute();
+        }) // eslint-disable-line comma-dangle
+      );
+
+      this.#state.builder.clear();
+      await this.#state.builder.raw('COMMIT').execute();
+
+      return results;
+    } catch (err) {
+      this.#state.builder.clear();
+      await this.#state.builder.raw('ROLLBACK').execute();
+
+      throw err;
+    }
+  }
+}
+
+
+export function createClient<T>(connection: string | ConnectionProps, options?: { ssl?: boolean }): { readonly sql: <K extends keyof T>(table: K | Omit<string, K>) => PostgresBuilder<T[K]>; readonly schema: PostgresSchemaBuilder } {
   let datname: string;
 
   if(typeof connection === 'string') {
@@ -769,7 +1002,11 @@ export function createClient<T>(connection: string | ConnectionProps, options?: 
     datname = connection.database;
   }
 
-  return (table: any) => {
-    return new PostgresBuilder(datname, table as string, connection, options?.ssl);
-  };
+  return Object.freeze({
+    sql: ((table: any) => {
+      return new PostgresBuilder(datname, table as string, connection, options?.ssl);
+    }) as any,
+
+    schema: new PostgresSchemaBuilder(connection, { ssl: options?.ssl }),
+  });
 }

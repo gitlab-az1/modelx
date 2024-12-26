@@ -22,7 +22,7 @@ export const ASCI_UNDERLINE = '\x1b[4m';
 
 
 export function assertString(value: unknown, msg?: string): asserts value is string {
-  if(!value || typeof value !== 'string') {
+  if(typeof value !== 'string' || value.length === 0) {
     throw setLastError(new Exception(msg || `Cannot use 'typeof ${typeof value}' as 'typeof string'`, 'ERR_INVALID_TYPE', {
       actual: value,
       expected: 'typeof string',
