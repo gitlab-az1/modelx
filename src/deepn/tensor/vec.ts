@@ -379,8 +379,10 @@ export class Vector implements MultidimensionalVector {
   readonly #points: number[];
   #frozen: boolean;
 
-  public constructor(points: readonly number[]) {
-    this.#points = [...points];
+  public constructor(points: readonly number[]);
+  public constructor(...points: readonly number[]);
+  public constructor(...points: [readonly number[]] | readonly number[]) {
+    this.#points = Array.isArray(points[0]) ? [ ...points[0] ] : [ ...points ];
     this.#frozen = false;
   }
 
