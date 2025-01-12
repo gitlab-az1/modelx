@@ -23,6 +23,7 @@ export * from './io';
 export * from './fs';
 export * from './types';
 export * from './queue';
+export * from './schema';
 export * from './cancellation';
 
 export * from './@internals/id';
