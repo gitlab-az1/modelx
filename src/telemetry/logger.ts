@@ -4,6 +4,7 @@ import { EventLoop } from '@ts-overflow/async/event-loop';
 import IOStream from '../io';
 import { Span } from './metrics';
 import type { Dict } from '../types';
+import { timestamp } from '../timer';
 import { ensureDirSync } from '../fs';
 import { uuid } from '../@internals/id';
 import { Exception } from '../@internals/errors';
@@ -326,7 +327,7 @@ export class TelemetryLogger implements AbstractLogger, IDisposable {
       message,
       args,
       context: context || undefined,
-      timestamp: Date.now(),
+      timestamp: timestamp(),
       level: level || this.#state.level,
       service: this.#serviceName || null,
     };

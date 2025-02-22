@@ -1,6 +1,7 @@
 import { EventLoop } from '@ts-overflow/async/event-loop';
 
 import { MinHeap } from './heap';
+import { timestamp } from './timer';
 import { uuid } from './@internals/id';
 import { isThenable } from './@internals/util';
 import { Exception } from './@internals/errors';
@@ -660,7 +661,7 @@ export class InMemoryQueue<TJob = any, TContext = any> implements IDisposable {
         const job = {
           ...nextJob,
           concurrency: this.#state.concurrency,
-          startedAt: Date.now(),
+          startedAt: timestamp(),
           context: this.#context,
         } as QueueContextArgument<TContext, TJob>;
         

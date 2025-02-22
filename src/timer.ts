@@ -5,7 +5,7 @@ const hasPerformanceNow = (
 
 
 export function timestamp(highResolution?: boolean): number {
-  return hasPerformanceNow && highResolution !== false ? Date.now() : (globalThis.performance?.now || performance.now)();
+  return hasPerformanceNow && highResolution !== false ? (globalThis.performance?.now || performance.now)() : Date.now();
 }
 
 

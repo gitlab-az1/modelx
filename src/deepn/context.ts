@@ -1,6 +1,7 @@
 import type { CpuInfo, NetworkInterfaceInfo } from 'os';
 
 import type { Dict } from '../types';
+import { timestamp } from '../timer';
 import { setLastError } from '../environment';
 import { Exception } from '../@internals/errors';
 import { constant, getvar, variable } from './kernel/vars';
@@ -99,7 +100,7 @@ type WorkerContextProps = {
 
 class WorkerContext {
   private _env: Map<string, string | undefined>;
-  private readonly _startedAt: Date = new Date(Date.now());
+  private readonly _startedAt: Date = new Date(timestamp());
   private readonly _arguments: DeepAbstractArray<string>;
 
   public constructor(props: WorkerContextProps = {}) {

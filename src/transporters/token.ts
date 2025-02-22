@@ -1,6 +1,7 @@
 import { hmac } from 'cryptx-sdk/hash';
 import { deepCompare } from 'cryptx-sdk/core';
 
+import { timestamp } from '../timer';
 import type { Dict } from '../@internals/types';
 import { Exception } from '../@internals/errors';
 import { aesDecrypt, aesEncrypt } from '../crypto/weak-aes';
@@ -71,7 +72,7 @@ export async function createTransportableToken<T>(payload: T,
     'x-algorithm': 'X.TRANSPORTABLE_DEFAULT.x64.HMAC-SHA512',
     'x-signature': token.signature,
     'x-package-description': 'TransportableSignedToken',
-    'x-sign-timestamp': Date.now(),
+    'x-sign-timestamp': timestamp(),
   };
 
   const pkg = {
